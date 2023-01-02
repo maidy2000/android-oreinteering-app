@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="horizontal"
+    android:layout_width="match_parent"
+    android:layout_height="64dp"
+    android:minHeight="64dp"
+    android:maxHeight="64dp">
+
+
+    <ImageButton
+        android:id="@+id/imageButtonStartStop"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        app:srcCompat="@drawable/play" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/textViewTotalDistance"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="TotalDistance" />
+
+        <TextView
+            android:id="@+id/textViewTotalTimeElapsed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="TotalTimeElapsed" />
+
+        <TextView
+            android:id="@+id/textViewTotalPace"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Pace" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/imageButton2"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        app:srcCompat="@drawable/flag" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/textViewDistanceCoveredFromCP"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="DistanceCoveredFromCP" />
+
+        <TextView
+            android:id="@+id/textViewDirectDistanceFromCP"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="DirectDistanceFromCP" />
+
+        <TextView
+            android:id="@+id/textViewCPPace"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="CPPace" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/imageButton3"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        app:srcCompat="@drawable/pin_drop" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/textViewDistanceCoveredFromWP"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="DistanceCoveredFromWP" />
+
+        <TextView
+            android:id="@+id/textViewDirectDistanceFromWP"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="DirectDistanceFromWP" />
+
+        <TextView
+            android:id="@+id/textViewWPPace"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="WPPace" />
+    </LinearLayout>
+</LinearLayout>
