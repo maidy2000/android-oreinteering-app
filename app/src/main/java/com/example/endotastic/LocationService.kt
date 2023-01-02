@@ -35,7 +35,7 @@ class LocationService : Service() {
     private var currentLocation: Location? = null
 
 
-    private var distance = 0.0
+//    private var distance = 0.0
 
     override fun onBind(intent: Intent): IBinder {
         TODO("Return the communication channel to the service.")
@@ -95,14 +95,14 @@ class LocationService : Service() {
 //            && 2 <= location.distanceTo(currentLocation) && location.distanceTo(currentLocation) <= 50
         ) {
             Log.d(TAG, "step of ${location.distanceTo(currentLocation)}m")
-            distance += location.distanceTo(currentLocation)
+//            distance += location.distanceTo(currentLocation)
 
             val intent = Intent(C.LOCATION_UPDATE)
             intent.putExtra(C.LOCATION_UPDATE_LAT, location.latitude)
             intent.putExtra(C.LOCATION_UPDATE_LON, location.longitude)
             LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
 
-            showNotification()
+//            showNotification()
         }
         currentLocation = location
 
@@ -142,11 +142,12 @@ class LocationService : Service() {
             Looper.myLooper()
         )
     }
+//TODO viia see funkt activitysse
 
     fun showNotification() {
         val notifyView = RemoteViews(packageName, R.layout.map_notification)
 
-        notifyView.setTextViewText(R.id.textViewTotalDistance, distance.roundToLong().toString())
+//        notifyView.setTextViewText(R.id.textViewTotalDistance, distance.roundToLong().toString())
 
 
         var builder = NotificationCompat

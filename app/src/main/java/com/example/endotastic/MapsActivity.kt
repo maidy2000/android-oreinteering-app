@@ -9,6 +9,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.location.Location
+import android.location.LocationManager
 import android.os.*
 import android.util.Log
 import android.widget.ImageButton
@@ -24,8 +26,10 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
 import com.google.firebase.crashlytics.buildtools.reloc.com.google.common.base.Stopwatch
+import java.text.DecimalFormatSymbols
 import java.util.*
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
@@ -35,9 +39,11 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var buttonStartStop: ImageButton
     lateinit var textViewTotalTimeElapsed: TextView
+    private lateinit var textViewTotalDistance: TextView
+    private lateinit var textViewTotalPace: TextView
 
     private lateinit var mMap: GoogleMap
-    private var drawingPolylineActive = false
+    private var isWorkoutActive = false
     private var startDrawingNewPolyline = false
 
     private var polylineOptions = PolylineOptions().width(10f).color(Color.RED)
@@ -46,6 +52,20 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var stopwatch: Stopwatch
     private var timer: Timer = Timer()
+    private var handler: UIHandler = UIHandler()
+
+    private var currentLocation: Location? = null
+    private var totalDistance = 0f
+    private var distanceCoveredFromCheckpoint = 0f
+    private var directDistanceFromCheckpoint = 0f
+    private var distanceCoveredFromWaypoint = 0f
+    private var directDistanceFromWaypoint = 0f
+
+    private var totalPace = 0.0
+    private var checkpointPace = 0.0
+    private var waypointPace = 0.0
+
+
 
     private var userLocationMarker: Marker? = null
 
@@ -77,6 +97,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             startStopWorkout()
         }
         textViewTotalTimeElapsed = findViewById(R.id.textViewTotalTimeElapsed)
+        textViewTotalDistance = findViewById(R.id.textViewTotalDistance)
+        textViewTotalPace = findViewById(R.id.textViewTotalPace)
 
         if (ActivityCompat.checkSelfPermission(
                 this,
@@ -125,6 +147,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     //region Stopwatch
 
     private fun startStopWorkout() {
+        isWorkoutActive = !isWorkoutActive
         startStopStopWatch()
         startStopDrawingPolyline()
     }
@@ -142,17 +165,30 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private inner class UpdateStopwatchTask : TimerTask() {
         override fun run() {
             // siin peaks vb UIHandlerit jooksutama hoopis
-            // TODO format time hh:mm:ss
-            textViewTotalTimeElapsed.text = stopwatch.elapsed(TimeUnit.SECONDS).toString()
+            // format time hh:mm:ss
+            handler.sendEmptyMessage(0)
         }
     }
 
-    //    private inner class UIHandler : Handler(Looper.getMainLooper()) {
-//        override fun handleMessage(msg: Message) {
-//            super.handleMessage(msg)
-//            textViewTotalTimeElapsed.text = stopwatch.elapsed(TimeUnit.SECONDS).toString()
-//        }
-//    }
+    private inner class UIHandler : Handler(Looper.getMainLooper()) {
+        override fun handleMessage(msg: Message) {
+            super.handleMessage(msg)
+            var elapsed = formatTime(stopwatch.elapsed(TimeUnit.SECONDS))
+            textViewTotalTimeElapsed.text = elapsed
+        }
+
+        private fun formatTime(elapsed: Long): String {
+            val secondsLeft: Long = elapsed % 3600 % 60
+            val minutes = Math.floor((elapsed % 3600 / 60).toDouble()).toInt()
+            val hours = Math.floor((elapsed / 3600).toDouble()).toInt()
+
+            val HH = (if (hours < 10) "0" else "") + hours
+            val MM = (if (minutes < 10) "0" else "") + minutes
+            val SS = (if (secondsLeft < 10) "0" else "") + secondsLeft
+
+            return "$HH:$MM:$SS"
+        }
+    }
 
     //endregion
 
@@ -169,9 +205,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun startStopDrawingPolyline() {
-        drawingPolylineActive = !drawingPolylineActive
-
-        if (drawingPolylineActive) {
+        if (isWorkoutActive) {
             startDrawingNewPolyline = true
             polylineOptions = PolylineOptions().width(10f).color(Color.RED)
             buttonStartStop.setImageDrawable(AppCompatResources.getDrawable(this, R.drawable.pause))
@@ -179,6 +213,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             if (currentPolyline != null) {
                 polylines.add(currentPolyline!!)
             }
+            startDrawingNewPolyline = true
             buttonStartStop.setImageDrawable(AppCompatResources.getDrawable(this, R.drawable.play))
         }
     }
@@ -202,18 +237,69 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         val latLng = LatLng(lat, lng)
 
         updateUserLocationMarker(latLng)
+        if (isWorkoutActive) {
+            drawPolyLine(latLng)
+            updateDistances(latLng)
+            updatePaces()
+        }
 
-        if (drawingPolylineActive) {
-            if (currentPolyline != null && !startDrawingNewPolyline) {
-                currentPolyline!!.remove()
-            }
-            startDrawingNewPolyline = !startDrawingNewPolyline
-
-            polylineOptions.add(latLng)
-
-            currentPolyline = mMap.addPolyline(polylineOptions)
+        currentLocation = Location(LocationManager.GPS_PROVIDER).apply {
+            latitude = latLng.latitude
+            longitude = latLng.longitude
         }
         mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng))
+    }
+
+    private fun updatePaces() {
+        val seconds = stopwatch.elapsed(TimeUnit.SECONDS)
+        val km = totalDistance.toInt()
+        textViewTotalPace.text = formatPace(seconds, km)
+    }
+
+    private fun formatPace(seconds: Long, meters: Int): String {
+        if (meters == 0) return "--:--min/km"
+
+        var pace = seconds.toDouble() / meters.toDouble()
+        pace = pace * 1000 / 60
+
+        val min = pace / 1
+        val sec = pace % 1 * 60
+        Log.d(TAG, "formatPace $min:$sec")
+
+        val MM = (if (min.toInt() < 10) "0" else "") + min.toInt()
+        val SS = (if (sec < 10) "0" else "") + sec.toInt()
+        return "$MM.${SS}min/km"
+    }
+
+    private fun updateDistances(latLng: LatLng) {
+        val updatedLocation = Location(LocationManager.GPS_PROVIDER).apply {
+            latitude = latLng.latitude
+            longitude = latLng.longitude
+        }
+        if (currentLocation != null) {
+            totalDistance += currentLocation!!.distanceTo(updatedLocation)
+            val distance = formatDistance(totalDistance.roundToInt())
+            textViewTotalDistance.text = distance
+        }
+        //todo update other distances, update notification
+    }
+
+    private fun formatDistance(distance: Int): String {
+        val kilometers = distance / 1000
+        val decameters = distance % 1000 / 10
+        val km = (if (kilometers < 10) "0" else "") + kilometers
+        val dam = (if (decameters < 10) "0" else "") + decameters
+        Log.d(TAG, "$km.$dam=$distance")
+        return "$km.${dam}km"
+    }
+
+    private fun drawPolyLine(latLng: LatLng) {
+        if (currentPolyline != null && !startDrawingNewPolyline) {
+            currentPolyline!!.remove()
+            startDrawingNewPolyline = false
+        }
+        polylineOptions.add(latLng)
+        currentPolyline = mMap.addPolyline(polylineOptions)
     }
 
     private fun updateUserLocationMarker(latLng: LatLng) {

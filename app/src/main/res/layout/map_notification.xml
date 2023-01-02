@@ -25,19 +25,19 @@
             android:id="@+id/textViewTotalDistance"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="TotalDistance" />
+            android:text="--:--km" />
 
         <TextView
             android:id="@+id/textViewTotalTimeElapsed"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="TotalTimeElapsed" />
+            android:text="--:--:--" />
 
         <TextView
             android:id="@+id/textViewTotalPace"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Pace" />
+            android:text="--:--min/km" />
     </LinearLayout>
 
     <ImageButton
@@ -57,19 +57,19 @@
             android:id="@+id/textViewDistanceCoveredFromCP"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="DistanceCoveredFromCP" />
+            android:text="--.--km" />
 
         <TextView
             android:id="@+id/textViewDirectDistanceFromCP"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="DirectDistanceFromCP" />
+            android:text="--.--km" />
 
         <TextView
             android:id="@+id/textViewCPPace"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="CPPace" />
+            android:text="--:--min/km" />
     </LinearLayout>
 
     <ImageButton
@@ -89,18 +89,18 @@
             android:id="@+id/textViewDistanceCoveredFromWP"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="DistanceCoveredFromWP" />
+            android:text="00.00km" />
 
         <TextView
             android:id="@+id/textViewDirectDistanceFromWP"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="DirectDistanceFromWP" />
+            android:text="00.00km" />
 
         <TextView
             android:id="@+id/textViewWPPace"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="WPPace" />
+            android:text="00:00" />
     </LinearLayout>
 </LinearLayout>
