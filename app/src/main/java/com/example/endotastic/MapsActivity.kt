@@ -32,6 +32,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
+import com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_YELLOW
 import com.google.firebase.crashlytics.buildtools.reloc.com.google.common.base.Stopwatch
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -81,6 +82,9 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private var waypointPace = 0.0
 
     private var currentCamera : Camera = Camera()
+
+    private var checkpoints: MutableList<Point> = mutableListOf()
+    private var currentWaypoint : Point? = null
 
     private var userLocationMarker: Marker? = null
 
@@ -401,8 +405,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         buttonCancel.visibility = View.VISIBLE
     }
 
-    private class Point(val type: PointType, val latLng: LatLng) {
-        private var visited = false
+    private class Point(val type: PointType, val latLng: LatLng) : Marker {
+        var visited = false
 
         init {
             if (type == PointType.Checkpoint) {
@@ -410,23 +414,77 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
 
-        fun getIconDrawable(): Int {
+//        fun setVisited() {
+//            visited = true
+//            //todo db actions?
+//            // replace icon
+//        }
+
+        fun getIcon(context: Context): BitmapDescriptor? {
             return when (type) {
-                PointType.Waypoint -> {
-                    R.drawable.pin_drop
-                }
+                PointType.Waypoint -> BitmapDescriptorFactory.defaultMarker(HUE_YELLOW)
                 PointType.Checkpoint -> {
-                    R.drawable.flag
+                    if (visited) {
+                        bitmapFromVector(context, R.drawable.flag_green)
+                    } else {
+                        bitmapFromVector(context, R.drawable.flag_yellow)
+                    }
                 }
             }
         }
+
+        private fun bitmapFromVector(context: Context, vectorResId: Int): BitmapDescriptor {
+            // below line is use to generate a drawable.
+            val vectorDrawable = ContextCompat.getDrawable(context, vectorResId)
+
+            // below line is use to set bounds to our vector drawable.
+            vectorDrawable!!.setBounds(
+                0,
+                0,
+                vectorDrawable.intrinsicWidth,
+                vectorDrawable.intrinsicHeight
+            )
+
+            // below line is use to create a bitmap for our
+            // drawable which we have added.
+            val bitmap = Bitmap.createBitmap(
+                vectorDrawable.intrinsicWidth,
+                vectorDrawable.intrinsicHeight,
+                Bitmap.Config.ARGB_8888
+            )
+
+            // below line is use to add bitmap in our canvas.
+            val canvas = Canvas(bitmap)
+
+            // below line is use to draw our
+            // vector drawable in canvas.
+            vectorDrawable.draw(canvas)
+
+            // after generating our bitmap we are returning our bitmap.
+            return BitmapDescriptorFactory.fromBitmap(bitmap)
+        }
+
     }
 
     // lisatakse valitud asukohta kollane unreached staatusega CP/WP (vajadusel salvestatakse andmebaasi)
     private fun confirmPoint(type: PointType) {
         val point = Point(type, mMap.cameraPosition.target)
-        val pointMarker = MarkerOptions().position(point.latLng).icon(bitmapFromVector(this, point.getIconDrawable()))
-        mMap.addMarker(pointMarker)
+        drawPoint(point)
+    }
+
+    private fun drawPoint(point: Point) {
+        val pointMarker = MarkerOptions()
+            .position(point.latLng)
+            .icon(point.getIcon(this))
+
+        val marker = mMap.addMarker(pointMarker)
+        point.marker = marker
+
+        if (point.type == PointType.Checkpoint) {
+            checkpoints.add(point)
+        } else {
+            currentWaypoint = point
+        }
     }
 
     private fun endAddPoint(savedCamera: Camera) {
@@ -445,38 +503,68 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
+    private fun checkPoints() {
+        for (point in checkpoints) {
+            val pointLocation = (Location(LocationManager.GPS_PROVIDER).apply {
+                latitude = point.latLng.latitude
+                longitude = point.latLng.longitude
+            })
+            val distance = currentLocation?.distanceTo(pointLocation)
+
+            if (distance != null && distance <= C.ACCEPTABLE_POINT_DISTANCE)
+                point.visited = true
+                mMap.
+            }
+        }
+
     //endregion
-    
-    private fun bitmapFromVector(context: Context, vectorResId: Int): BitmapDescriptor? {
-        // below line is use to generate a drawable.
-        val vectorDrawable = ContextCompat.getDrawable(context, vectorResId)
 
-        // below line is use to set bounds to our vector drawable.
-        vectorDrawable!!.setBounds(
-            0,
-            0,
-            vectorDrawable.intrinsicWidth,
-            vectorDrawable.intrinsicHeight
-        )
+    /*
+    # Kuidas checkpoint ja waypoint toimima peaksid?
+    CP - some predefined marked location on terrain and on paper map. When you did find the CP, mark it's location in app. Gets saved to DB. (voib olla mitu)
+    WP - temporary marker, used to measure smaller segments on terrain to find path to next CP. When placing new WP, previous one is removed. WPs do not get saved to DB. (1 korraga)
 
-        // below line is use to create a bitmap for our
-        // drawable which we have added.
-        val bitmap = Bitmap.createBitmap(
-            vectorDrawable.intrinsicWidth,
-            vectorDrawable.intrinsicHeight,
-            Bitmap.Config.ARGB_8888
-        )
+    ## Eeldus
+    ### Muutmine
+    Muutmist nendele ei tee esialgu - hiljem võib teha, et saab muuta kui vajutada konkreetse CP/WP märgile.
 
-        // below line is use to add bitmap in our canvas.
-        val canvas = Canvas(bitmap)
+    ### Lisamine
+    1. Vajutan CP/WP nuppu all ribal.
+    2. Kaameralukk eemaldub, kaardi keskel näidatakse CP/WP märki.
+    3. Sätin kaarti liigutades CP/WP sobivasse kohta
+    4.
+        a) Vajutan checkmarki (tuleb mõelda mingi koht kus see oleks), mis kinnitab asukoha. Asukohta tekib kollast? värvi vastav märk.
+        b) Kui otsutan vajutada cancel ristikest, siis viiakse mind mu eelnevasse seisu tagasi.
 
-        // below line is use to draw our
-        // vector drawable in canvas.
-        vectorDrawable.draw(canvas)
+    ### CP/WPni jõudes
+    Tuleb teavitus
+    Märgi värv muutub roheliseks
+    Tuleb hakata uuesti mõõtma distantsi, aega ja tempot vastavast WPst/CPst
 
-        // after generating our bitmap we are returning our bitmap.
-        return BitmapDescriptorFactory.fromBitmap(bitmap)
-    }
+    ## Teostus
+    Lisada CP ja WP lisamise nuppude listenerid
+    CP/WP lisamise nupu vajutamisel...
+        tuleb salvestada eelnevad kaamera seaded
+        ajutiselt muuta kaamera seaded vabaks
+        lisada ekraani keskele wp/cp märk või näiteks rist, mis aitaks asukohta määrata
+        lisada UI'le confirm ja cancel nupud
+
+        CP/WP cancel nupu vajutamisel
+            eemaldatakse ekraani keskel olev CP/WP/rist, millega asukohta määratakse
+            määratakse tagasi salvestatud kaameraseaded
+
+        CP/WP confirm nupu vajutamisel
+            lisatakse valitud asukohta kollane unreached staatusega CP/WP (vajadusel salvestatakse andmebaasi)
+            taastatakse eelnev olek sarnasel cancel nupu vajutamisele
+
+    Location received funktsioonis kontrollida, kas u 5-10m raadiuses on CP/WP
+        kui pole, siis ei tee midagi
+        kui on, siis...
+            määrata CP/WP läbitud staatusesse
+            muuta sellega seoses ka värv roheliseks
+            salvestada läbimise aeg, tempo, distants jne andmebaasi (hiljem realiseerida äkki)
+            resettida current CP/WP distantsid, aeg, tempo jne
+     */
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
