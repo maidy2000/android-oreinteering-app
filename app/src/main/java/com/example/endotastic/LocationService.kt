@@ -1,6 +1,7 @@
 package com.example.endotastic
 
 import android.Manifest
+import android.app.Notification
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -14,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.android.gms.location.*
+import kotlin.math.log
 import kotlin.math.roundToLong
 
 class LocationService : Service() {
@@ -35,7 +37,7 @@ class LocationService : Service() {
     private var currentLocation: Location? = null
 
 
-//    private var distance = 0.0
+    private var counter = 0
 
     override fun onBind(intent: Intent): IBinder {
         TODO("Return the communication channel to the service.")
@@ -102,7 +104,7 @@ class LocationService : Service() {
             intent.putExtra(C.LOCATION_UPDATE_LON, location.longitude)
             LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
 
-//            showNotification()
+            showNotification()
         }
         currentLocation = location
 
@@ -118,7 +120,7 @@ class LocationService : Service() {
         return START_STICKY
     }
 
-    fun requestLocationUpdates() {
+    private fun requestLocationUpdates() {
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
@@ -142,12 +144,13 @@ class LocationService : Service() {
             Looper.myLooper()
         )
     }
-//TODO viia see funkt activitysse
+//TODO viia see funkt activitysse?
 
-    fun showNotification() {
+    private fun showNotification() {
+        Log.d(TAG, "showNotification")
         val notifyView = RemoteViews(packageName, R.layout.map_notification)
-
-//        notifyView.setTextViewText(R.id.textViewTotalDistance, distance.roundToLong().toString())
+        counter += 1
+        notifyView.setTextViewText(R.id.textViewTotalDistance, counter.toString())
 
 
         var builder = NotificationCompat
@@ -171,4 +174,5 @@ class LocationService : Service() {
 
         NotificationManagerCompat.from(applicationContext).cancelAll()
     }
+
 }

@@ -41,7 +41,7 @@
     </LinearLayout>
 
     <ImageButton
-        android:id="@+id/imageButton2"
+        android:id="@+id/imageButtonAddCheckpoint"
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_weight="1"
@@ -73,7 +73,7 @@
     </LinearLayout>
 
     <ImageButton
-        android:id="@+id/imageButton3"
+        android:id="@+id/imageButtonAddWaypoint"
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_weight="1"
@@ -89,18 +89,18 @@
             android:id="@+id/textViewDistanceCoveredFromWP"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="00.00km" />
+            android:text="--.--km" />
 
         <TextView
             android:id="@+id/textViewDirectDistanceFromWP"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="00.00km" />
+            android:text="--.--km" />
 
         <TextView
             android:id="@+id/textViewWPPace"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="00:00" />
+            android:text="--:--min/km" />
     </LinearLayout>
 </LinearLayout>

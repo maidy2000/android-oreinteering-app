@@ -8,25 +8,31 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
 import android.location.Location
 import android.location.LocationManager
 import android.os.*
 import android.util.Log
+import android.view.View
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.example.endotastic.enums.CameraMode
+import com.example.endotastic.enums.PointType
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
 import com.google.firebase.crashlytics.buildtools.reloc.com.google.common.base.Stopwatch
-import java.text.DecimalFormatSymbols
 import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
@@ -38,9 +44,18 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private lateinit var buttonStartStop: ImageButton
+    private lateinit var buttonAddCheckpoint: ImageButton
+    private lateinit var buttonAddWaypoint: ImageButton
+    private lateinit var buttonToggleCameraDirection: ImageButton
+    private lateinit var buttonConfirm: ImageButton
+    private lateinit var buttonCancel: ImageButton
+
     lateinit var textViewTotalTimeElapsed: TextView
     private lateinit var textViewTotalDistance: TextView
     private lateinit var textViewTotalPace: TextView
+
+    private lateinit var imageViewCheckpointPointer : ImageView
+    private lateinit var imageViewWaypointPointer : ImageView
 
     private lateinit var mMap: GoogleMap
     private var isWorkoutActive = false
@@ -55,7 +70,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private var handler: UIHandler = UIHandler()
 
     private var currentLocation: Location? = null
-    private var totalDistance = 0f
+    private var totalDistance: Float = 0f
     private var distanceCoveredFromCheckpoint = 0f
     private var directDistanceFromCheckpoint = 0f
     private var distanceCoveredFromWaypoint = 0f
@@ -65,7 +80,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private var checkpointPace = 0.0
     private var waypointPace = 0.0
 
-
+    private var currentCamera : Camera = Camera()
 
     private var userLocationMarker: Marker? = null
 
@@ -93,9 +108,21 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         stopwatch = Stopwatch.createUnstarted()
 
         buttonStartStop = findViewById(R.id.imageButtonStartStop)
-        buttonStartStop.setOnClickListener {
-            startStopWorkout()
-        }
+        buttonStartStop.setOnClickListener { startStopWorkout() }
+        buttonAddCheckpoint = findViewById(R.id.imageButtonAddCheckpoint)
+        buttonAddCheckpoint.setOnClickListener { startAddPoint(PointType.Checkpoint) }
+        buttonAddWaypoint = findViewById(R.id.imageButtonAddWaypoint)
+        buttonAddWaypoint.setOnClickListener { startAddPoint(PointType.Waypoint) }
+
+        buttonConfirm = findViewById(R.id.imageButtonConfirm)
+        buttonCancel = findViewById(R.id.imageButtonCancel)
+
+        imageViewCheckpointPointer = findViewById(R.id.imageViewCheckpoint)
+        imageViewWaypointPointer = findViewById(R.id.imageViewWaypoint)
+
+        buttonToggleCameraDirection = findViewById(R.id.imageButtonToggleCameraDirection)
+        buttonToggleCameraDirection.setOnClickListener { toggleCameraDirection() }
+
         textViewTotalTimeElapsed = findViewById(R.id.textViewTotalTimeElapsed)
         textViewTotalDistance = findViewById(R.id.textViewTotalDistance)
         textViewTotalPace = findViewById(R.id.textViewTotalPace)
@@ -198,7 +225,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         mMap = googleMap
 
         // Add a marker in Sydney and move the camera
-        mMap.moveCamera(CameraUpdateFactory.zoomBy(14f))
+//        mMap.moveCamera(CameraUpdateFactory.zoomBy(14f))
 //        val sydney = LatLng(-34.0, 151.0)
 //        mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
 //        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
@@ -247,19 +274,43 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             latitude = latLng.latitude
             longitude = latLng.longitude
         }
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(latLng))
+        updateCamera()
     }
 
+    private fun drawPolyLine(latLng: LatLng) {
+        if (currentPolyline != null && !startDrawingNewPolyline) {
+            currentPolyline!!.remove()
+            startDrawingNewPolyline = false
+        }
+        polylineOptions.add(latLng)
+        currentPolyline = mMap.addPolyline(polylineOptions)
+    }
+
+    private fun updateUserLocationMarker(latLng: LatLng) {
+        if (userLocationMarker != null) {
+            userLocationMarker!!.remove()
+        }
+
+        val userIconOptions = MarkerOptions()
+            .position(latLng)
+            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_CYAN))
+
+        userLocationMarker = mMap.addMarker(userIconOptions)
+    }
+
+    //endregion
+
+    //region Time, distance, pace
     private fun updatePaces() {
-        val seconds = stopwatch.elapsed(TimeUnit.SECONDS)
-        val km = totalDistance.toInt()
-        textViewTotalPace.text = formatPace(seconds, km)
+        val totalTime = stopwatch.elapsed(TimeUnit.SECONDS)
+        textViewTotalPace.text = formatPace(totalTime, totalDistance)
+        //todo update other paces
     }
 
-    private fun formatPace(seconds: Long, meters: Int): String {
-        if (meters == 0) return "--:--min/km"
+    private fun formatPace(seconds: Long, meters: Float): String {
+        if (meters <= 0) return "--:--min/km"
 
-        var pace = seconds.toDouble() / meters.toDouble()
+        var pace = (seconds / meters).toDouble()
         pace = pace * 1000 / 60
 
         val min = pace / 1
@@ -293,28 +344,139 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         return "$km.${dam}km"
     }
 
-    private fun drawPolyLine(latLng: LatLng) {
-        if (currentPolyline != null && !startDrawingNewPolyline) {
-            currentPolyline!!.remove()
-            startDrawingNewPolyline = false
+    //endregion
+
+    //region Camera
+
+    private fun toggleCameraDirection() {
+        //todo teha camera object
+        when (currentCamera.mode) {
+            CameraMode.NORTH_UP -> currentCamera.mode = CameraMode.DIRECTION_UP
+            CameraMode.DIRECTION_UP -> currentCamera.mode = CameraMode.FREE
+            CameraMode.FREE -> currentCamera.mode = CameraMode.NORTH_UP
+            CameraMode.USER_CHOSEN_UP -> currentCamera.mode = CameraMode.USER_CHOSEN_UP
         }
-        polylineOptions.add(latLng)
-        currentPolyline = mMap.addPolyline(polylineOptions)
+        Log.d(TAG, "toggleCameraDirection: ${currentCamera.mode}")
+        updateCamera()
     }
 
-    private fun updateUserLocationMarker(latLng: LatLng) {
-        if (userLocationMarker != null) {
-            userLocationMarker!!.remove()
+    private fun updateCamera() {
+        mMap.uiSettings.isRotateGesturesEnabled = currentCamera.isRotateEnabled()
+        Log.d(TAG, "updateCamera: ${currentCamera.mode}")
+
+        if (currentCamera.mode == CameraMode.FREE) return
+
+        var cameraPositionBuilder = CameraPosition.Builder()
+        val latLng = LatLng(currentLocation!!.latitude, currentLocation!!.longitude)
+        cameraPositionBuilder.target(latLng)
+
+        if (currentCamera.getBearing() != null) {
+            cameraPositionBuilder.bearing(currentCamera.getBearing()!!)
         }
 
-        val userIconOptions = MarkerOptions()
-            .position(latLng)
-            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_CYAN))
-
-        userLocationMarker = mMap.addMarker(userIconOptions)
+        cameraPositionBuilder = cameraPositionBuilder.zoom(currentCamera.zoom)
+        mMap.moveCamera(CameraUpdateFactory.newCameraPosition(cameraPositionBuilder.build()))
     }
 
     //endregion
+
+    //region Checkpoints, waypoints
+    private fun startAddPoint(type: PointType) {
+        /*
+        tuleb salvestada eelnevad kaamera seaded
+        ajutiselt muuta kaamera seaded vabaks
+        lisada ekraani keskele wp/cp märk või näiteks rist, mis aitaks asukohta määrata
+        lisada UI'le confirm ja cancel nupud
+         */
+        Log.d(TAG, "startAddPoint: $type")
+        val savedCamera = currentCamera
+        currentCamera = Camera(CameraMode.FREE, savedCamera.zoom)
+        showPointer(type)
+        buttonConfirm.setOnClickListener {
+            confirmPoint(type)
+            endAddPoint(savedCamera)
+        }
+        buttonCancel.setOnClickListener { endAddPoint(savedCamera)}
+        buttonConfirm.visibility = View.VISIBLE
+        buttonCancel.visibility = View.VISIBLE
+    }
+
+    private class Point(val type: PointType, val latLng: LatLng) {
+        private var visited = false
+
+        init {
+            if (type == PointType.Checkpoint) {
+                //todo save to db
+            }
+        }
+
+        fun getIconDrawable(): Int {
+            return when (type) {
+                PointType.Waypoint -> {
+                    R.drawable.pin_drop
+                }
+                PointType.Checkpoint -> {
+                    R.drawable.flag
+                }
+            }
+        }
+    }
+
+    // lisatakse valitud asukohta kollane unreached staatusega CP/WP (vajadusel salvestatakse andmebaasi)
+    private fun confirmPoint(type: PointType) {
+        val point = Point(type, mMap.cameraPosition.target)
+        val pointMarker = MarkerOptions().position(point.latLng).icon(bitmapFromVector(this, point.getIconDrawable()))
+        mMap.addMarker(pointMarker)
+    }
+
+    private fun endAddPoint(savedCamera: Camera) {
+        buttonCancel.visibility = View.GONE
+        buttonConfirm.visibility = View.GONE
+        imageViewWaypointPointer.visibility = View.GONE
+        imageViewCheckpointPointer.visibility = View.GONE
+        currentCamera = savedCamera
+    }
+
+    private fun showPointer(type: PointType) {
+        if (type == PointType.Waypoint) {
+            imageViewWaypointPointer.visibility = View.VISIBLE
+        } else if (type == PointType.Checkpoint) {
+            imageViewCheckpointPointer.visibility = View.VISIBLE
+        }
+    }
+
+    //endregion
+    
+    private fun bitmapFromVector(context: Context, vectorResId: Int): BitmapDescriptor? {
+        // below line is use to generate a drawable.
+        val vectorDrawable = ContextCompat.getDrawable(context, vectorResId)
+
+        // below line is use to set bounds to our vector drawable.
+        vectorDrawable!!.setBounds(
+            0,
+            0,
+            vectorDrawable.intrinsicWidth,
+            vectorDrawable.intrinsicHeight
+        )
+
+        // below line is use to create a bitmap for our
+        // drawable which we have added.
+        val bitmap = Bitmap.createBitmap(
+            vectorDrawable.intrinsicWidth,
+            vectorDrawable.intrinsicHeight,
+            Bitmap.Config.ARGB_8888
+        )
+
+        // below line is use to add bitmap in our canvas.
+        val canvas = Canvas(bitmap)
+
+        // below line is use to draw our
+        // vector drawable in canvas.
+        vectorDrawable.draw(canvas)
+
+        // after generating our bitmap we are returning our bitmap.
+        return BitmapDescriptorFactory.fromBitmap(bitmap)
+    }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
