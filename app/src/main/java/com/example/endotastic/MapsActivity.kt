@@ -32,6 +32,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
+import com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_GREEN
 import com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_YELLOW
 import com.google.firebase.crashlytics.buildtools.reloc.com.google.common.base.Stopwatch
 import java.util.*
@@ -55,8 +56,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var textViewTotalDistance: TextView
     private lateinit var textViewTotalPace: TextView
 
-    private lateinit var imageViewCheckpointPointer : ImageView
-    private lateinit var imageViewWaypointPointer : ImageView
+    private lateinit var imageViewCheckpointPointer: ImageView
+    private lateinit var imageViewWaypointPointer: ImageView
 
     private lateinit var mMap: GoogleMap
     private var isWorkoutActive = false
@@ -81,10 +82,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private var checkpointPace = 0.0
     private var waypointPace = 0.0
 
-    private var currentCamera : Camera = Camera()
+    private var currentCamera: Camera = Camera()
 
-    private var checkpoints: MutableList<Point> = mutableListOf()
-    private var currentWaypoint : Point? = null
+    private var unvisitedCheckpoints: MutableList<Point> = mutableListOf()
+    private var visitedCheckpoints: MutableList<Point> = mutableListOf()
+
+    private var currentWaypoint: Point? = null
 
     private var userLocationMarker: Marker? = null
 
@@ -278,6 +281,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             latitude = latLng.latitude
             longitude = latLng.longitude
         }
+
+        if (isWorkoutActive) {
+            checkCheckpoints()
+        }
         updateCamera()
     }
 
@@ -400,13 +407,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             confirmPoint(type)
             endAddPoint(savedCamera)
         }
-        buttonCancel.setOnClickListener { endAddPoint(savedCamera)}
+        buttonCancel.setOnClickListener { endAddPoint(savedCamera) }
         buttonConfirm.visibility = View.VISIBLE
         buttonCancel.visibility = View.VISIBLE
     }
 
-    private class Point(val type: PointType, val latLng: LatLng) : Marker {
+    private class Point(val type: PointType, val latLng: LatLng) {
         var visited = false
+        var marker: Marker? = null
 
         init {
             if (type == PointType.Checkpoint) {
@@ -422,7 +430,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         fun getIcon(context: Context): BitmapDescriptor? {
             return when (type) {
-                PointType.Waypoint -> BitmapDescriptorFactory.defaultMarker(HUE_YELLOW)
+                PointType.Waypoint -> {
+                    if (visited) {
+                        BitmapDescriptorFactory.defaultMarker(HUE_GREEN)
+                    } else {
+                        BitmapDescriptorFactory.defaultMarker(HUE_YELLOW)
+                    }
+                }
                 PointType.Checkpoint -> {
                     if (visited) {
                         bitmapFromVector(context, R.drawable.flag_green)
@@ -473,6 +487,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun drawPoint(point: Point) {
+        point.marker?.remove()
+
         val pointMarker = MarkerOptions()
             .position(point.latLng)
             .icon(point.getIcon(this))
@@ -481,7 +497,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         point.marker = marker
 
         if (point.type == PointType.Checkpoint) {
-            checkpoints.add(point)
+            unvisitedCheckpoints.add(point)
         } else {
             currentWaypoint = point
         }
@@ -503,67 +519,34 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
-    private fun checkPoints() {
-        for (point in checkpoints) {
+    private fun checkCheckpoints() {
+        val visited = mutableListOf<Point>()
+        for (point in unvisitedCheckpoints) {
             val pointLocation = (Location(LocationManager.GPS_PROVIDER).apply {
                 latitude = point.latLng.latitude
                 longitude = point.latLng.longitude
             })
             val distance = currentLocation?.distanceTo(pointLocation)
 
-            if (distance != null && distance <= C.ACCEPTABLE_POINT_DISTANCE)
+            if (distance != null)
+                if (distance <= C.ACCEPTABLE_POINT_DISTANCE) {
+                    visited.add(point)
+                }
+        }
+        if (visited.isNotEmpty()) {
+            for (point in visited) {
                 point.visited = true
-                mMap.
+                drawPoint(point)
+                visitedCheckpoints.add(point)
+                unvisitedCheckpoints.remove(point)
             }
         }
+    }
 
     //endregion
 
     /*
-    # Kuidas checkpoint ja waypoint toimima peaksid?
-    CP - some predefined marked location on terrain and on paper map. When you did find the CP, mark it's location in app. Gets saved to DB. (voib olla mitu)
-    WP - temporary marker, used to measure smaller segments on terrain to find path to next CP. When placing new WP, previous one is removed. WPs do not get saved to DB. (1 korraga)
 
-    ## Eeldus
-    ### Muutmine
-    Muutmist nendele ei tee esialgu - hiljem võib teha, et saab muuta kui vajutada konkreetse CP/WP märgile.
-
-    ### Lisamine
-    1. Vajutan CP/WP nuppu all ribal.
-    2. Kaameralukk eemaldub, kaardi keskel näidatakse CP/WP märki.
-    3. Sätin kaarti liigutades CP/WP sobivasse kohta
-    4.
-        a) Vajutan checkmarki (tuleb mõelda mingi koht kus see oleks), mis kinnitab asukoha. Asukohta tekib kollast? värvi vastav märk.
-        b) Kui otsutan vajutada cancel ristikest, siis viiakse mind mu eelnevasse seisu tagasi.
-
-    ### CP/WPni jõudes
-    Tuleb teavitus
-    Märgi värv muutub roheliseks
-    Tuleb hakata uuesti mõõtma distantsi, aega ja tempot vastavast WPst/CPst
-
-    ## Teostus
-    Lisada CP ja WP lisamise nuppude listenerid
-    CP/WP lisamise nupu vajutamisel...
-        tuleb salvestada eelnevad kaamera seaded
-        ajutiselt muuta kaamera seaded vabaks
-        lisada ekraani keskele wp/cp märk või näiteks rist, mis aitaks asukohta määrata
-        lisada UI'le confirm ja cancel nupud
-
-        CP/WP cancel nupu vajutamisel
-            eemaldatakse ekraani keskel olev CP/WP/rist, millega asukohta määratakse
-            määratakse tagasi salvestatud kaameraseaded
-
-        CP/WP confirm nupu vajutamisel
-            lisatakse valitud asukohta kollane unreached staatusega CP/WP (vajadusel salvestatakse andmebaasi)
-            taastatakse eelnev olek sarnasel cancel nupu vajutamisele
-
-    Location received funktsioonis kontrollida, kas u 5-10m raadiuses on CP/WP
-        kui pole, siis ei tee midagi
-        kui on, siis...
-            määrata CP/WP läbitud staatusesse
-            muuta sellega seoses ka värv roheliseks
-            salvestada läbimise aeg, tempo, distants jne andmebaasi (hiljem realiseerida äkki)
-            resettida current CP/WP distantsid, aeg, tempo jne
      */
 
     private fun createNotificationChannel() {
