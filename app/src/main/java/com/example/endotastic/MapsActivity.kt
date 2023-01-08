@@ -37,7 +37,6 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_YELLOW
 import com.google.firebase.crashlytics.buildtools.reloc.com.google.common.base.Stopwatch
 import java.util.*
 import java.util.concurrent.TimeUnit
-import kotlin.math.roundToInt
 
 
 class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
@@ -56,6 +55,15 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var textViewTotalDistance: TextView
     private lateinit var textViewTotalPace: TextView
 
+    private lateinit var textViewDistanceCoveredFromCheckpoint: TextView
+    private lateinit var textViewDirectDistanceFromCheckpoint: TextView
+    private lateinit var textViewCheckpointPace: TextView
+    private lateinit var textViewDistanceCoveredFromWaypoint: TextView
+    private lateinit var textViewDirectDistanceFromWaypoint: TextView
+    private lateinit var textViewWaypointPace: TextView
+
+    private lateinit var textViewCameraMode: TextView
+
     private lateinit var imageViewCheckpointPointer: ImageView
     private lateinit var imageViewWaypointPointer: ImageView
 
@@ -72,22 +80,16 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private var handler: UIHandler = UIHandler()
 
     private var currentLocation: Location? = null
-    private var totalDistance: Float = 0f
-    private var distanceCoveredFromCheckpoint = 0f
-    private var directDistanceFromCheckpoint = 0f
-    private var distanceCoveredFromWaypoint = 0f
-    private var directDistanceFromWaypoint = 0f
-
-    private var totalPace = 0.0
-    private var checkpointPace = 0.0
-    private var waypointPace = 0.0
+    private var totalDistance = 0
 
     private var currentCamera: Camera = Camera()
 
-    private var unvisitedCheckpoints: MutableList<Point> = mutableListOf()
+    private var unvisitedPoints: MutableList<Point> = mutableListOf()
     private var visitedCheckpoints: MutableList<Point> = mutableListOf()
+    private var lastVisitedCheckpoint: Point? = null
 
     private var currentWaypoint: Point? = null
+    private var lastVisitedWaypoint: Point? = null
 
     private var userLocationMarker: Marker? = null
 
@@ -133,6 +135,14 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         textViewTotalTimeElapsed = findViewById(R.id.textViewTotalTimeElapsed)
         textViewTotalDistance = findViewById(R.id.textViewTotalDistance)
         textViewTotalPace = findViewById(R.id.textViewTotalPace)
+        textViewDistanceCoveredFromCheckpoint = findViewById(R.id.textViewDistanceCoveredFromCheckpoint)
+        textViewDirectDistanceFromCheckpoint = findViewById(R.id.textViewDirectDistanceFromCheckpoint)
+        textViewCheckpointPace = findViewById(R.id.textViewCheckpointPace)
+        textViewDistanceCoveredFromWaypoint = findViewById(R.id.textViewDistanceCoveredFromWaypoint)
+        textViewDirectDistanceFromWaypoint = findViewById(R.id.textViewDirectDistanceFromWaypoint)
+        textViewWaypointPace = findViewById(R.id.textViewWaypointPace)
+
+        textViewCameraMode = findViewById(R.id.textViewCameraMode) // todo remove later
 
         if (ActivityCompat.checkSelfPermission(
                 this,
@@ -159,7 +169,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     override fun onResume() {
         super.onResume()
-        Log.d(TAG, "onResume")
+        //Log.d(TAG, "onResume")
 
         LocalBroadcastManager.getInstance(this)
             .registerReceiver(broadcastReceiver, broadcastReceiverIntentFilter)
@@ -167,12 +177,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     override fun onPause() {
         super.onPause()
-        Log.d(TAG, "onPause")
+        //Log.d(TAG, "onPause")
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "onDestroy")
+        //Log.d(TAG, "onDestroy")
         LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceiver)
     }
 
@@ -199,7 +209,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private inner class UpdateStopwatchTask : TimerTask() {
         override fun run() {
             // siin peaks vb UIHandlerit jooksutama hoopis
-            // format time hh:mm:ss
             handler.sendEmptyMessage(0)
         }
     }
@@ -207,8 +216,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private inner class UIHandler : Handler(Looper.getMainLooper()) {
         override fun handleMessage(msg: Message) {
             super.handleMessage(msg)
-            var elapsed = formatTime(stopwatch.elapsed(TimeUnit.SECONDS))
-            textViewTotalTimeElapsed.text = elapsed
+            val totalElapsed = formatTime(stopwatch.elapsed(TimeUnit.SECONDS))
+            textViewTotalTimeElapsed.text = totalElapsed
         }
 
         private fun formatTime(elapsed: Long): String {
@@ -230,12 +239,6 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
-
-        // Add a marker in Sydney and move the camera
-//        mMap.moveCamera(CameraUpdateFactory.zoomBy(14f))
-//        val sydney = LatLng(-34.0, 151.0)
-//        mMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
-//        mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
     }
 
     private fun startStopDrawingPolyline() {
@@ -253,7 +256,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     private fun startLocationService() {
-        Log.d(TAG, "startLocationService")
+        //Log.d(TAG, "startLocationService")
         val intent = Intent(applicationContext, LocationService::class.java)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -265,7 +268,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
     fun updateLocation(lat: Double, lng: Double) {
-        Log.d(TAG, "updateLocation, ${lat} ${lng}")
+        //Log.d(TAG, "updateLocation, ${lat} ${lng}")
         if (mMap == null) return
 
         val latLng = LatLng(lat, lng)
@@ -283,7 +286,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         if (isWorkoutActive) {
-            checkCheckpoints()
+            checkPoints()
         }
         updateCamera()
     }
@@ -315,18 +318,24 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun updatePaces() {
         val totalTime = stopwatch.elapsed(TimeUnit.SECONDS)
         textViewTotalPace.text = formatPace(totalTime, totalDistance)
-        //todo update other paces
+
+        if (lastVisitedWaypoint != null) {
+            //Log.d(TAG, "updatePaces: waypoint")
+            textViewWaypointPace.text = formatPace(totalTime - lastVisitedWaypoint!!.visitedAt!!, lastVisitedWaypoint!!.totalDistanceFrom)
+        }
+        if (lastVisitedCheckpoint != null) {
+            //Log.d(TAG, "updatePaces: checkpoint")
+            textViewCheckpointPace.text = formatPace(totalTime - lastVisitedCheckpoint!!.visitedAt!!, lastVisitedCheckpoint!!.totalDistanceFrom)
+        }
     }
 
-    private fun formatPace(seconds: Long, meters: Float): String {
+    private fun formatPace(seconds: Long, meters: Int): String {
         if (meters <= 0) return "--:--min/km"
-
-        var pace = (seconds / meters).toDouble()
+        var pace = (seconds.toDouble() / meters.toDouble())
         pace = pace * 1000 / 60
 
         val min = pace / 1
         val sec = pace % 1 * 60
-        Log.d(TAG, "formatPace $min:$sec")
 
         val MM = (if (min.toInt() < 10) "0" else "") + min.toInt()
         val SS = (if (sec < 10) "0" else "") + sec.toInt()
@@ -338,12 +347,31 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             latitude = latLng.latitude
             longitude = latLng.longitude
         }
-        if (currentLocation != null) {
-            totalDistance += currentLocation!!.distanceTo(updatedLocation)
-            val distance = formatDistance(totalDistance.roundToInt())
-            textViewTotalDistance.text = distance
+        if (currentLocation == null) return
+
+        val addedDistance = currentLocation!!.distanceTo(updatedLocation).toInt()
+
+        totalDistance += currentLocation!!.distanceTo(updatedLocation).toInt()
+        textViewTotalDistance.text = formatDistance(totalDistance)
+
+        // update waypoint distances
+        if (lastVisitedWaypoint != null) {
+            lastVisitedWaypoint!!.totalDistanceFrom += addedDistance
+            textViewDistanceCoveredFromWaypoint.text = formatDistance(lastVisitedWaypoint!!.totalDistanceFrom)
+
+            val directDistance = currentLocation!!.distanceTo(lastVisitedWaypoint!!.location).toInt()
+            textViewDirectDistanceFromWaypoint.text = formatDistance(directDistance)
         }
-        //todo update other distances, update notification
+
+        // update checkpoint distances
+        if (lastVisitedCheckpoint != null) {
+            lastVisitedCheckpoint!!.totalDistanceFrom += addedDistance
+            textViewDistanceCoveredFromCheckpoint.text = formatDistance(lastVisitedCheckpoint!!.totalDistanceFrom)
+
+            val directDistance = currentLocation!!.distanceTo(lastVisitedCheckpoint!!.location).toInt()
+            textViewDirectDistanceFromCheckpoint.text = formatDistance(directDistance)
+        }
+        //todo update notification
     }
 
     private fun formatDistance(distance: Int): String {
@@ -351,7 +379,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         val decameters = distance % 1000 / 10
         val km = (if (kilometers < 10) "0" else "") + kilometers
         val dam = (if (decameters < 10) "0" else "") + decameters
-        Log.d(TAG, "$km.$dam=$distance")
+        //Log.d(TAG, "$km.$dam=$distance")
         return "$km.${dam}km"
     }
 
@@ -360,20 +388,20 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     //region Camera
 
     private fun toggleCameraDirection() {
-        //todo teha camera object
         when (currentCamera.mode) {
             CameraMode.NORTH_UP -> currentCamera.mode = CameraMode.DIRECTION_UP
             CameraMode.DIRECTION_UP -> currentCamera.mode = CameraMode.FREE
             CameraMode.FREE -> currentCamera.mode = CameraMode.NORTH_UP
             CameraMode.USER_CHOSEN_UP -> currentCamera.mode = CameraMode.USER_CHOSEN_UP
         }
-        Log.d(TAG, "toggleCameraDirection: ${currentCamera.mode}")
+        //Log.d(TAG, "toggleCameraDirection: ${currentCamera.mode}")
+        textViewCameraMode.text = currentCamera.mode.name
         updateCamera()
     }
 
     private fun updateCamera() {
         mMap.uiSettings.isRotateGesturesEnabled = currentCamera.isRotateEnabled()
-        Log.d(TAG, "updateCamera: ${currentCamera.mode}")
+        //Log.d(TAG, "updateCamera: ${currentCamera.mode}")
 
         if (currentCamera.mode == CameraMode.FREE) return
 
@@ -393,13 +421,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     //region Checkpoints, waypoints
     private fun startAddPoint(type: PointType) {
-        /*
-        tuleb salvestada eelnevad kaamera seaded
-        ajutiselt muuta kaamera seaded vabaks
-        lisada ekraani keskele wp/cp märk või näiteks rist, mis aitaks asukohta määrata
-        lisada UI'le confirm ja cancel nupud
-         */
-        Log.d(TAG, "startAddPoint: $type")
+        //Log.d(TAG, "startAddPoint: $type")
         val savedCamera = currentCamera
         currentCamera = Camera(CameraMode.FREE, savedCamera.zoom)
         showPointer(type)
@@ -412,93 +434,32 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         buttonCancel.visibility = View.VISIBLE
     }
 
-    private class Point(val type: PointType, val latLng: LatLng) {
-        var visited = false
-        var marker: Marker? = null
-
-        init {
-            if (type == PointType.Checkpoint) {
-                //todo save to db
-            }
-        }
-
-//        fun setVisited() {
-//            visited = true
-//            //todo db actions?
-//            // replace icon
-//        }
-
-        fun getIcon(context: Context): BitmapDescriptor? {
-            return when (type) {
-                PointType.Waypoint -> {
-                    if (visited) {
-                        BitmapDescriptorFactory.defaultMarker(HUE_GREEN)
-                    } else {
-                        BitmapDescriptorFactory.defaultMarker(HUE_YELLOW)
-                    }
-                }
-                PointType.Checkpoint -> {
-                    if (visited) {
-                        bitmapFromVector(context, R.drawable.flag_green)
-                    } else {
-                        bitmapFromVector(context, R.drawable.flag_yellow)
-                    }
-                }
-            }
-        }
-
-        private fun bitmapFromVector(context: Context, vectorResId: Int): BitmapDescriptor {
-            // below line is use to generate a drawable.
-            val vectorDrawable = ContextCompat.getDrawable(context, vectorResId)
-
-            // below line is use to set bounds to our vector drawable.
-            vectorDrawable!!.setBounds(
-                0,
-                0,
-                vectorDrawable.intrinsicWidth,
-                vectorDrawable.intrinsicHeight
-            )
-
-            // below line is use to create a bitmap for our
-            // drawable which we have added.
-            val bitmap = Bitmap.createBitmap(
-                vectorDrawable.intrinsicWidth,
-                vectorDrawable.intrinsicHeight,
-                Bitmap.Config.ARGB_8888
-            )
-
-            // below line is use to add bitmap in our canvas.
-            val canvas = Canvas(bitmap)
-
-            // below line is use to draw our
-            // vector drawable in canvas.
-            vectorDrawable.draw(canvas)
-
-            // after generating our bitmap we are returning our bitmap.
-            return BitmapDescriptorFactory.fromBitmap(bitmap)
-        }
-
-    }
-
-    // lisatakse valitud asukohta kollane unreached staatusega CP/WP (vajadusel salvestatakse andmebaasi)
     private fun confirmPoint(type: PointType) {
-        val point = Point(type, mMap.cameraPosition.target)
+        val location = (Location(LocationManager.GPS_PROVIDER).apply {
+            latitude = mMap.cameraPosition.target.latitude
+            longitude = mMap.cameraPosition.target.longitude
+        })
+        val point = Point(type, location)
         drawPoint(point)
     }
 
     private fun drawPoint(point: Point) {
         point.marker?.remove()
 
+        // remove current waypoint as there can be only one waypoint at a time
+        if (point.type == PointType.Waypoint && currentWaypoint != null) {
+            currentWaypoint!!.marker?.remove()
+        }
+
         val pointMarker = MarkerOptions()
-            .position(point.latLng)
+            .position(LatLng(point.location.latitude, point.location.longitude))
             .icon(point.getIcon(this))
 
         val marker = mMap.addMarker(pointMarker)
         point.marker = marker
 
-        if (point.type == PointType.Checkpoint) {
-            unvisitedCheckpoints.add(point)
-        } else {
+        unvisitedPoints.add(point)
+        if (point.type == PointType.Waypoint) {
             currentWaypoint = point
         }
     }
@@ -506,12 +467,12 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun endAddPoint(savedCamera: Camera) {
         buttonCancel.visibility = View.GONE
         buttonConfirm.visibility = View.GONE
-        imageViewWaypointPointer.visibility = View.GONE
-        imageViewCheckpointPointer.visibility = View.GONE
+        clearPointers()
         currentCamera = savedCamera
     }
 
     private fun showPointer(type: PointType) {
+        clearPointers()
         if (type == PointType.Waypoint) {
             imageViewWaypointPointer.visibility = View.VISIBLE
         } else if (type == PointType.Checkpoint) {
@@ -519,27 +480,36 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
-    private fun checkCheckpoints() {
+    private fun clearPointers() {
+        imageViewWaypointPointer.visibility = View.GONE
+        imageViewCheckpointPointer.visibility = View.GONE
+    }
+
+    private fun checkPoints() {
         val visited = mutableListOf<Point>()
-        for (point in unvisitedCheckpoints) {
-            val pointLocation = (Location(LocationManager.GPS_PROVIDER).apply {
-                latitude = point.latLng.latitude
-                longitude = point.latLng.longitude
-            })
-            val distance = currentLocation?.distanceTo(pointLocation)
+        for (point in unvisitedPoints) {
+            val distance = currentLocation?.distanceTo(point.location)
 
             if (distance != null)
                 if (distance <= C.ACCEPTABLE_POINT_DISTANCE) {
                     visited.add(point)
                 }
         }
-        if (visited.isNotEmpty()) {
-            for (point in visited) {
-                point.visited = true
-                drawPoint(point)
+        if (visited.isEmpty()) return
+
+        for (point in visited) {
+            point.visited = true
+            point.visitedAt = stopwatch.elapsed(TimeUnit.SECONDS)
+            point.totalDistanceFrom = currentLocation!!.distanceTo(point.location).toInt()
+
+            drawPoint(point)
+            if (point.type == PointType.Checkpoint) {
                 visitedCheckpoints.add(point)
-                unvisitedCheckpoints.remove(point)
+                lastVisitedCheckpoint = point
+            } else if (point.type == PointType.Waypoint){
+                lastVisitedWaypoint = point
             }
+            unvisitedPoints.remove(point)
         }
     }
 
@@ -560,7 +530,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private inner class InnerBroadcastReceiver : BroadcastReceiver() {
         override fun onReceive(p0: Context?, p1: Intent?) {
-            Log.d(TAG, "onRecieve")
+            //Log.d(TAG, "onRecieve")
             when (p1!!.action) {
                 C.LOCATION_UPDATE -> {
                     updateLocation(

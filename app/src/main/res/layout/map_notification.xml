@@ -54,19 +54,19 @@
         android:orientation="vertical">
 
         <TextView
-            android:id="@+id/textViewDistanceCoveredFromCP"
+            android:id="@+id/textViewDistanceCoveredFromCheckpoint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="--.--km" />
 
         <TextView
-            android:id="@+id/textViewDirectDistanceFromCP"
+            android:id="@+id/textViewDirectDistanceFromCheckpoint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="--.--km" />
 
         <TextView
-            android:id="@+id/textViewCPPace"
+            android:id="@+id/textViewCheckpointPace"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="--:--min/km" />
@@ -86,19 +86,19 @@
         android:orientation="vertical">
 
         <TextView
-            android:id="@+id/textViewDistanceCoveredFromWP"
+            android:id="@+id/textViewDistanceCoveredFromWaypoint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="--.--km" />
 
         <TextView
-            android:id="@+id/textViewDirectDistanceFromWP"
+            android:id="@+id/textViewDirectDistanceFromWaypoint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="--.--km" />
 
         <TextView
-            android:id="@+id/textViewWPPace"
+            android:id="@+id/textViewWaypointPace"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="--:--min/km" />
