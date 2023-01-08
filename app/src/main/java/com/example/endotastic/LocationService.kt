@@ -1,7 +1,6 @@
 package com.example.endotastic
 
 import android.Manifest
-import android.app.Notification
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -15,8 +14,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.android.gms.location.*
-import kotlin.math.log
-import kotlin.math.roundToLong
 
 class LocationService : Service() {
     companion object {
@@ -93,8 +90,7 @@ class LocationService : Service() {
     fun locationReceive(location: Location) {
         Log.d(TAG, "locationReceive")
 
-        if (currentLocation != null
-//            && 2 <= location.distanceTo(currentLocation) && location.distanceTo(currentLocation) <= 50
+        if (currentLocation != null && 2 <= location.distanceTo(currentLocation) && location.distanceTo(currentLocation) <= 50
         ) {
             Log.d(TAG, "step of ${location.distanceTo(currentLocation)}m")
 //            distance += location.distanceTo(currentLocation)
@@ -144,7 +140,6 @@ class LocationService : Service() {
             Looper.myLooper()
         )
     }
-//TODO viia see funkt activitysse?
 
     private fun showNotification() {
         Log.d(TAG, "showNotification")
@@ -153,7 +148,7 @@ class LocationService : Service() {
         notifyView.setTextViewText(R.id.textViewTotalDistance, counter.toString())
 
 
-        var builder = NotificationCompat
+        val builder = NotificationCompat
             .Builder(applicationContext, C.NOTIFICATION_CHANNEL)
             .setSmallIcon(R.drawable.map)
             .setPriority(NotificationCompat.PRIORITY_MIN)
