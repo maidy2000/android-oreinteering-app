@@ -8,8 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.Color
 import android.location.Location
 import android.location.LocationManager
@@ -23,26 +21,26 @@ import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.example.endotastic.enums.CameraMode
-import com.example.endotastic.enums.PointType
+import com.example.endotastic.enums.PointOfInterestType
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
-import com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_GREEN
-import com.google.android.gms.maps.model.BitmapDescriptorFactory.HUE_YELLOW
 import com.google.firebase.crashlytics.buildtools.reloc.com.google.common.base.Stopwatch
 import java.util.*
-import java.util.concurrent.TimeUnit
 
 
-class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
+class MapActivity : AppCompatActivity(), OnMapReadyCallback {
     companion object {
         private val TAG = this::class.java.declaringClass!!.simpleName
     }
+
+    private lateinit var viewModel : MapActivityViewModel
+    private val formatter : Formatter = Formatter()
 
     private lateinit var buttonStartStop: ImageButton
     private lateinit var buttonAddCheckpoint: ImageButton
@@ -68,8 +66,10 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var imageViewWaypointPointer: ImageView
 
     private lateinit var mMap: GoogleMap
-    private var isWorkoutActive = false
+//    private var isWorkoutActive = false
     private var startDrawingNewPolyline = false
+
+    private var markers : MutableList<Marker> = mutableListOf()
 
     private var polylineOptions = PolylineOptions().width(10f).color(Color.RED)
     private var currentPolyline: Polyline? = null
@@ -77,19 +77,19 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var stopwatch: Stopwatch
     private var timer: Timer = Timer()
-    private var handler: UIHandler = UIHandler()
+//    private var handler: UIHandler = UIHandler()
 
-    private var currentLocation: Location? = null
+    private var currentLocation: Location? = C.TALLINN_LOCATION
     private var totalDistance = 0
 
     private var currentCamera: Camera = Camera()
 
-    private var unvisitedPoints: MutableList<Point> = mutableListOf()
-    private var visitedCheckpoints: MutableList<Point> = mutableListOf()
-    private var lastVisitedCheckpoint: Point? = null
+    private var unvisitedPointOfInterests: MutableList<PointOfInterest> = mutableListOf()
+    private var visitedCheckpoints: MutableList<PointOfInterest> = mutableListOf()
+    private var lastVisitedCheckpoint: PointOfInterest? = null
 
-    private var currentWaypoint: Point? = null
-    private var lastVisitedWaypoint: Point? = null
+    private var currentWaypoint: PointOfInterest? = null
+    private var lastVisitedWaypoint: PointOfInterest? = null
 
     private var userLocationMarker: Marker? = null
 
@@ -104,6 +104,7 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main_activity)
+        viewModel = ViewModelProvider(this).get(MapActivityViewModel::class.java)
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
@@ -116,15 +117,18 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         stopwatch = Stopwatch.createUnstarted()
 
+        //region buttons
         buttonStartStop = findViewById(R.id.imageButtonStartStop)
-        buttonStartStop.setOnClickListener { startStopWorkout() }
+        buttonStartStop.setOnClickListener { startEndWorkout() }
+
         buttonAddCheckpoint = findViewById(R.id.imageButtonAddCheckpoint)
-        buttonAddCheckpoint.setOnClickListener { startAddPoint(PointType.Checkpoint) }
+        buttonAddCheckpoint.setOnClickListener { startAddPointOfInterest(PointOfInterestType.Checkpoint) }
         buttonAddWaypoint = findViewById(R.id.imageButtonAddWaypoint)
-        buttonAddWaypoint.setOnClickListener { startAddPoint(PointType.Waypoint) }
+        buttonAddWaypoint.setOnClickListener { startAddPointOfInterest(PointOfInterestType.Waypoint) }
 
         buttonConfirm = findViewById(R.id.imageButtonConfirm)
         buttonCancel = findViewById(R.id.imageButtonCancel)
+        //endregion
 
         imageViewCheckpointPointer = findViewById(R.id.imageViewCheckpoint)
         imageViewWaypointPointer = findViewById(R.id.imageViewWaypoint)
@@ -132,17 +136,62 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         buttonToggleCameraDirection = findViewById(R.id.imageButtonToggleCameraDirection)
         buttonToggleCameraDirection.setOnClickListener { toggleCameraDirection() }
 
+        //region textViews
+        // totalTimeElapsed & totalPace
         textViewTotalTimeElapsed = findViewById(R.id.textViewTotalTimeElapsed)
-        textViewTotalDistance = findViewById(R.id.textViewTotalDistance)
         textViewTotalPace = findViewById(R.id.textViewTotalPace)
-        textViewDistanceCoveredFromCheckpoint = findViewById(R.id.textViewDistanceCoveredFromCheckpoint)
-        textViewDirectDistanceFromCheckpoint = findViewById(R.id.textViewDirectDistanceFromCheckpoint)
-        textViewCheckpointPace = findViewById(R.id.textViewCheckpointPace)
-        textViewDistanceCoveredFromWaypoint = findViewById(R.id.textViewDistanceCoveredFromWaypoint)
-        textViewDirectDistanceFromWaypoint = findViewById(R.id.textViewDirectDistanceFromWaypoint)
-        textViewWaypointPace = findViewById(R.id.textViewWaypointPace)
+        viewModel.totalTimeElapsed.observe(this) {
+            textViewTotalTimeElapsed.text = formatter.formatTime(it)
+            textViewTotalPace.text = viewModel.totalDistance.value?.let { distance -> formatter.formatPace(it, distance) }
+        }
 
+        // totalDistance & totalPace
+        textViewTotalDistance = findViewById(R.id.textViewTotalDistance)
+        viewModel.totalDistance.observe(this) {
+            textViewTotalDistance.text = formatter.formatDistance(it)
+            textViewTotalPace.text = viewModel.totalTimeElapsed.value?.let { time -> formatter.formatPace(time, it) }
+        }
+
+        // trigger redraw of points of interests
+        viewModel.updatePointsOfInterest.observe(this) {
+            if (it) {
+                viewModel.updatePointsOfInterest.value = false
+                redrawPointsOfInterest()
+            }
+        }
+
+
+        // distanceCoveredFromCheckpoint & checkpointPace
+        textViewDistanceCoveredFromCheckpoint = findViewById(R.id.textViewDistanceCoveredFromCheckpoint)
+        textViewCheckpointPace = findViewById(R.id.textViewCheckpointPace)
+        viewModel.distanceCoveredFromCheckpoint.observe(this) {
+            textViewDistanceCoveredFromCheckpoint.text = formatter.formatDistance(it)
+            val visitedAt = viewModel.getLastVisitedCheckpointVisitedAt()
+            textViewCheckpointPace.text = visitedAt?.let { _visitedAt -> formatter.formatPace(_visitedAt, it) }
+        }
+
+        // directDistanceFromCheckpoint
+        textViewDirectDistanceFromCheckpoint = findViewById(R.id.textViewDirectDistanceFromCheckpoint)
+        viewModel.directDistanceFromCheckpoint.observe(this) {
+            textViewDirectDistanceFromCheckpoint.text = formatter.formatDistance(it)
+        }
+
+        // distanceCoveredFromWaypoint & waypointPace
+        textViewDistanceCoveredFromWaypoint = findViewById(R.id.textViewDistanceCoveredFromWaypoint)
+        textViewWaypointPace = findViewById(R.id.textViewWaypointPace)
+        viewModel.distanceCoveredFromWaypoint.observe(this) {
+            textViewDistanceCoveredFromWaypoint.text = formatter.formatDistance(it)
+            val visitedAt = viewModel.getLastVisitedWaypointVisitedAt()
+            textViewWaypointPace.text = visitedAt?.let { _visitedAt -> formatter.formatPace(_visitedAt, it) }
+        }
+
+        // directDistanceFromWaypoint
+        textViewDirectDistanceFromWaypoint = findViewById(R.id.textViewDirectDistanceFromWaypoint)
+        viewModel.directDistanceFromWaypoint.observe(this) {
+            textViewDirectDistanceFromWaypoint.text = formatter.formatDistance(it)
+        }
         textViewCameraMode = findViewById(R.id.textViewCameraMode) // todo remove later
+        //endregion
 
         if (ActivityCompat.checkSelfPermission(
                 this,
@@ -186,52 +235,53 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceiver)
     }
 
+    private fun redrawPointsOfInterest() {
+        mMap.clear()
+        for (point in viewModel.getPointsOfInterests()) {
+            Log.d(TAG, "redrawPointsOfInterest, id=${point.id} type=${point.type}")
+            drawPoint(point)
+        }
+    }
+
     //endregion
 
     //region Stopwatch
 
-    private fun startStopWorkout() {
-        isWorkoutActive = !isWorkoutActive
-        startStopStopWatch()
-        startStopDrawingPolyline()
-    }
-
-    private fun startStopStopWatch() {
-        if (stopwatch.isRunning) {
-            stopwatch.stop()
+    private fun startEndWorkout() {
+        viewModel.startEndWorkout()
+        if (viewModel.isWorkoutActive()) {
+            buttonStartStop.setImageDrawable(AppCompatResources.getDrawable(this, R.drawable.pause))
         } else {
-            stopwatch.start()
-            val updateStopwatchTask = UpdateStopwatchTask()
-            timer.schedule(updateStopwatchTask, 0, 10)
+            buttonStartStop.setImageDrawable(AppCompatResources.getDrawable(this, R.drawable.play))
         }
     }
+
+//    private fun startStopStopWatch() {
+//        if (stopwatch.isRunning) {
+//            stopwatch.stop()
+//        } else {
+//            stopwatch.start()
+//            val updateStopwatchTask = UpdateStopwatchTask()
+//            timer.schedule(updateStopwatchTask, 0, 10)
+//        }
+//    }
 
     private inner class UpdateStopwatchTask : TimerTask() {
         override fun run() {
             // siin peaks vb UIHandlerit jooksutama hoopis
-            handler.sendEmptyMessage(0)
+//            handler.sendEmptyMessage(0)
         }
     }
 
-    private inner class UIHandler : Handler(Looper.getMainLooper()) {
-        override fun handleMessage(msg: Message) {
-            super.handleMessage(msg)
-            val totalElapsed = formatTime(stopwatch.elapsed(TimeUnit.SECONDS))
-            textViewTotalTimeElapsed.text = totalElapsed
-        }
-
-        private fun formatTime(elapsed: Long): String {
-            val secondsLeft: Long = elapsed % 3600 % 60
-            val minutes = Math.floor((elapsed % 3600 / 60).toDouble()).toInt()
-            val hours = Math.floor((elapsed / 3600).toDouble()).toInt()
-
-            val HH = (if (hours < 10) "0" else "") + hours
-            val MM = (if (minutes < 10) "0" else "") + minutes
-            val SS = (if (secondsLeft < 10) "0" else "") + secondsLeft
-
-            return "$HH:$MM:$SS"
-        }
-    }
+//    private inner class UIHandler : Handler(Looper.getMainLooper()) {
+//        override fun handleMessage(msg: Message) {
+//            super.handleMessage(msg)
+//            val totalElapsed = formatTime(stopwatch.elapsed(TimeUnit.SECONDS))
+//            textViewTotalTimeElapsed.text = totalElapsed
+//        }
+//
+//
+//    }
 
     //endregion
 
@@ -239,19 +289,20 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
+        redrawPointsOfInterest()
     }
 
     private fun startStopDrawingPolyline() {
-        if (isWorkoutActive) {
+        if (viewModel.isWorkoutActive()) {
             startDrawingNewPolyline = true
             polylineOptions = PolylineOptions().width(10f).color(Color.RED)
-            buttonStartStop.setImageDrawable(AppCompatResources.getDrawable(this, R.drawable.pause))
+//            buttonStartStop.setImageDrawable(AppCompatResources.getDrawable(this, R.drawable.pause))
         } else {
             if (currentPolyline != null) {
                 polylines.add(currentPolyline!!)
             }
             startDrawingNewPolyline = true
-            buttonStartStop.setImageDrawable(AppCompatResources.getDrawable(this, R.drawable.play))
+//            buttonStartStop.setImageDrawable(AppCompatResources.getDrawable(this, R.drawable.play))
         }
     }
 
@@ -267,27 +318,28 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
     }
 
-    fun updateLocation(lat: Double, lng: Double) {
-        //Log.d(TAG, "updateLocation, ${lat} ${lng}")
+    fun locationUpdateIn(lat: Double, lng: Double) {
+        viewModel.locationUpdateIn(lat, lng)
+        //todo drawing o map
+        Log.d(TAG, "updateLocation, ${lat} ${lng}")
         if (mMap == null) return
 
         val latLng = LatLng(lat, lng)
-
         updateUserLocationMarker(latLng)
-        if (isWorkoutActive) {
+        if (viewModel.isWorkoutActive()) {
             drawPolyLine(latLng)
-            updateDistances(latLng)
-            updatePaces()
+//            updateDistances(latLng)
+//            updatePaces()
         }
 
         currentLocation = Location(LocationManager.GPS_PROVIDER).apply {
             latitude = latLng.latitude
             longitude = latLng.longitude
         }
-
-        if (isWorkoutActive) {
-            checkPoints()
-        }
+//
+//        if (isWorkoutActive) {
+//            checkPoints()
+//        }
         updateCamera()
     }
 
@@ -315,73 +367,62 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     //endregion
 
     //region Time, distance, pace
-    private fun updatePaces() {
-        val totalTime = stopwatch.elapsed(TimeUnit.SECONDS)
-        textViewTotalPace.text = formatPace(totalTime, totalDistance)
+//    private fun updatePaces() {
+//        val totalTime = stopwatch.elapsed(TimeUnit.SECONDS)
+//        textViewTotalPace.text = formatter.formatPace(totalTime, totalDistance)
+//
+//        if (lastVisitedWaypoint != null) {
+//            //Log.d(TAG, "updatePaces: waypoint")
+//            textViewWaypointPace.text = formatter.formatPace(totalTime - lastVisitedWaypoint!!.visitedAt!!, lastVisitedWaypoint!!.totalDistanceFrom)
+//        }
+//        if (lastVisitedCheckpoint != null) {
+//            //Log.d(TAG, "updatePaces: checkpoint")
+//            textViewCheckpointPace.text = formatter.formatPace(totalTime - lastVisitedCheckpoint!!.visitedAt!!, lastVisitedCheckpoint!!.totalDistanceFrom)
+//        }
+//    }
 
-        if (lastVisitedWaypoint != null) {
-            //Log.d(TAG, "updatePaces: waypoint")
-            textViewWaypointPace.text = formatPace(totalTime - lastVisitedWaypoint!!.visitedAt!!, lastVisitedWaypoint!!.totalDistanceFrom)
-        }
-        if (lastVisitedCheckpoint != null) {
-            //Log.d(TAG, "updatePaces: checkpoint")
-            textViewCheckpointPace.text = formatPace(totalTime - lastVisitedCheckpoint!!.visitedAt!!, lastVisitedCheckpoint!!.totalDistanceFrom)
-        }
-    }
 
-    private fun formatPace(seconds: Long, meters: Int): String {
-        if (meters <= 0) return "--:--min/km"
-        var pace = (seconds.toDouble() / meters.toDouble())
-        pace = pace * 1000 / 60
 
-        val min = pace / 1
-        val sec = pace % 1 * 60
+//    private fun updateDistances(latLng: LatLng) {
+//        val updatedLocation = Location(LocationManager.GPS_PROVIDER).apply {
+//            latitude = latLng.latitude
+//            longitude = latLng.longitude
+//        }
+//        if (currentLocation == null) return
+//
+//        val addedDistance = currentLocation!!.distanceTo(updatedLocation).toInt()
+//
+//        totalDistance += currentLocation!!.distanceTo(updatedLocation).toInt()
+//        textViewTotalDistance.text = formatDistance(totalDistance)
+//
+//        // update waypoint distances
+//        if (lastVisitedWaypoint != null) {
+//            lastVisitedWaypoint!!.totalDistanceFrom += addedDistance
+//            textViewDistanceCoveredFromWaypoint.text = formatDistance(lastVisitedWaypoint!!.totalDistanceFrom)
+//
+//            val directDistance = currentLocation!!.distanceTo(lastVisitedWaypoint!!.location).toInt()
+//            textViewDirectDistanceFromWaypoint.text = formatDistance(directDistance)
+//        }
+//
+//        // update checkpoint distances
+//        if (lastVisitedCheckpoint != null) {
+//            lastVisitedCheckpoint!!.totalDistanceFrom += addedDistance
+//            textViewDistanceCoveredFromCheckpoint.text = formatDistance(lastVisitedCheckpoint!!.totalDistanceFrom)
+//
+//            val directDistance = currentLocation!!.distanceTo(lastVisitedCheckpoint!!.location).toInt()
+//            textViewDirectDistanceFromCheckpoint.text = formatDistance(directDistance)
+//        }
+//        //todo update notification
+//    }
 
-        val MM = (if (min.toInt() < 10) "0" else "") + min.toInt()
-        val SS = (if (sec < 10) "0" else "") + sec.toInt()
-        return "$MM.${SS}min/km"
-    }
-
-    private fun updateDistances(latLng: LatLng) {
-        val updatedLocation = Location(LocationManager.GPS_PROVIDER).apply {
-            latitude = latLng.latitude
-            longitude = latLng.longitude
-        }
-        if (currentLocation == null) return
-
-        val addedDistance = currentLocation!!.distanceTo(updatedLocation).toInt()
-
-        totalDistance += currentLocation!!.distanceTo(updatedLocation).toInt()
-        textViewTotalDistance.text = formatDistance(totalDistance)
-
-        // update waypoint distances
-        if (lastVisitedWaypoint != null) {
-            lastVisitedWaypoint!!.totalDistanceFrom += addedDistance
-            textViewDistanceCoveredFromWaypoint.text = formatDistance(lastVisitedWaypoint!!.totalDistanceFrom)
-
-            val directDistance = currentLocation!!.distanceTo(lastVisitedWaypoint!!.location).toInt()
-            textViewDirectDistanceFromWaypoint.text = formatDistance(directDistance)
-        }
-
-        // update checkpoint distances
-        if (lastVisitedCheckpoint != null) {
-            lastVisitedCheckpoint!!.totalDistanceFrom += addedDistance
-            textViewDistanceCoveredFromCheckpoint.text = formatDistance(lastVisitedCheckpoint!!.totalDistanceFrom)
-
-            val directDistance = currentLocation!!.distanceTo(lastVisitedCheckpoint!!.location).toInt()
-            textViewDirectDistanceFromCheckpoint.text = formatDistance(directDistance)
-        }
-        //todo update notification
-    }
-
-    private fun formatDistance(distance: Int): String {
-        val kilometers = distance / 1000
-        val decameters = distance % 1000 / 10
-        val km = (if (kilometers < 10) "0" else "") + kilometers
-        val dam = (if (decameters < 10) "0" else "") + decameters
-        //Log.d(TAG, "$km.$dam=$distance")
-        return "$km.${dam}km"
-    }
+//    private fun formatDistance(distance: Int): String {
+//        val kilometers = distance / 1000
+//        val decameters = distance % 1000 / 10
+//        val km = (if (kilometers < 10) "0" else "") + kilometers
+//        val dam = (if (decameters < 10) "0" else "") + decameters
+//        //Log.d(TAG, "$km.$dam=$distance")
+//        return "$km.${dam}km"
+//    }
 
     //endregion
 
@@ -420,62 +461,69 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
     //endregion
 
     //region Checkpoints, waypoints
-    private fun startAddPoint(type: PointType) {
+    private fun startAddPointOfInterest(type: PointOfInterestType) {
         //Log.d(TAG, "startAddPoint: $type")
-        val savedCamera = currentCamera
-        currentCamera = Camera(CameraMode.FREE, savedCamera.zoom)
+//        val savedCamera = currentCamera
+//        currentCamera = Camera(CameraMode.FREE, savedCamera.zoom)
         showPointer(type)
         buttonConfirm.setOnClickListener {
-            confirmPoint(type)
-            endAddPoint(savedCamera)
+            var pointOfInterest = viewModel.createPointOfInterest(
+                type = type,
+                latitude = mMap.cameraPosition.target.latitude,
+                longitude = mMap.cameraPosition.target.longitude)
+            pointOfInterest = drawPoint(pointOfInterest)
+            viewModel.savePointOfInterest(pointOfInterest)
+            endAddPoint()
         }
-        buttonCancel.setOnClickListener { endAddPoint(savedCamera) }
+        buttonCancel.setOnClickListener { endAddPoint() }
         buttonConfirm.visibility = View.VISIBLE
         buttonCancel.visibility = View.VISIBLE
     }
+//
+//    private fun confirmPoint(type: PointOfInterestType) {
+//        val location = (Location(LocationManager.GPS_PROVIDER).apply {
+//            latitude = mMap.cameraPosition.target.latitude
+//            longitude = mMap.cameraPosition.target.longitude
+//        })
+//        val pointOfInterest = PointOfInterest(type, location)
+//        drawPoint(pointOfInterest)
+//    }
 
-    private fun confirmPoint(type: PointType) {
-        val location = (Location(LocationManager.GPS_PROVIDER).apply {
-            latitude = mMap.cameraPosition.target.latitude
-            longitude = mMap.cameraPosition.target.longitude
-        })
-        val point = Point(type, location)
-        drawPoint(point)
-    }
-
-    private fun drawPoint(point: Point) {
-        point.marker?.remove()
+    private fun drawPoint(pointOfInterest: PointOfInterest): PointOfInterest {
+        pointOfInterest.marker?.remove()
 
         // remove current waypoint as there can be only one waypoint at a time
-        if (point.type == PointType.Waypoint && currentWaypoint != null) {
-            currentWaypoint!!.marker?.remove()
+        if (pointOfInterest.type == PointOfInterestType.Waypoint)
+        {
+            viewModel.removeCurrentWaypointMarker()
         }
 
         val pointMarker = MarkerOptions()
-            .position(LatLng(point.location.latitude, point.location.longitude))
-            .icon(point.getIcon(this))
+            .position(LatLng(pointOfInterest.latitude, pointOfInterest.longitude))
+            .icon(pointOfInterest.getIcon(this))
 
         val marker = mMap.addMarker(pointMarker)
-        point.marker = marker
-
-        unvisitedPoints.add(point)
-        if (point.type == PointType.Waypoint) {
-            currentWaypoint = point
-        }
+//        marker?.let { markers.add(it) }
+        pointOfInterest.marker = marker
+        return pointOfInterest
+//        unvisitedPointOfInterests.add(pointOfInterest)
+//        if (pointOfInterest.type == PointOfInterestType.Waypoint) {
+//            currentWaypoint = pointOfInterest
+//        }
     }
 
-    private fun endAddPoint(savedCamera: Camera) {
+    private fun endAddPoint(/*savedCamera: Camera*/) {
         buttonCancel.visibility = View.GONE
         buttonConfirm.visibility = View.GONE
         clearPointers()
-        currentCamera = savedCamera
+//        currentCamera = savedCamera
     }
 
-    private fun showPointer(type: PointType) {
+    private fun showPointer(type: PointOfInterestType) {
         clearPointers()
-        if (type == PointType.Waypoint) {
+        if (type == PointOfInterestType.Waypoint) {
             imageViewWaypointPointer.visibility = View.VISIBLE
-        } else if (type == PointType.Checkpoint) {
+        } else if (type == PointOfInterestType.Checkpoint) {
             imageViewCheckpointPointer.visibility = View.VISIBLE
         }
     }
@@ -485,33 +533,33 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
         imageViewCheckpointPointer.visibility = View.GONE
     }
 
-    private fun checkPoints() {
-        val visited = mutableListOf<Point>()
-        for (point in unvisitedPoints) {
-            val distance = currentLocation?.distanceTo(point.location)
-
-            if (distance != null)
-                if (distance <= C.ACCEPTABLE_POINT_DISTANCE) {
-                    visited.add(point)
-                }
-        }
-        if (visited.isEmpty()) return
-
-        for (point in visited) {
-            point.visited = true
-            point.visitedAt = stopwatch.elapsed(TimeUnit.SECONDS)
-            point.totalDistanceFrom = currentLocation!!.distanceTo(point.location).toInt()
-
-            drawPoint(point)
-            if (point.type == PointType.Checkpoint) {
-                visitedCheckpoints.add(point)
-                lastVisitedCheckpoint = point
-            } else if (point.type == PointType.Waypoint){
-                lastVisitedWaypoint = point
-            }
-            unvisitedPoints.remove(point)
-        }
-    }
+//    private fun checkPoints() {
+//        val visited = mutableListOf<PointOfInterest>()
+//        for (point in unvisitedPointOfInterests) {
+//            val distance = currentLocation?.distanceTo(point.location)
+//
+//            if (distance != null)
+//                if (distance <= C.ACCEPTABLE_POINT_DISTANCE) {
+//                    visited.add(point)
+//                }
+//        }
+//        if (visited.isEmpty()) return
+//
+//        for (point in visited) {
+//            point.isVisited = true
+//            point.visitedAt = stopwatch.elapsed(TimeUnit.SECONDS)
+//            point.totalDistanceFrom = currentLocation!!.distanceTo(point.location).toInt()
+//
+//            drawPoint(point)
+//            if (point.type == PointOfInterestType.Checkpoint) {
+//                visitedCheckpoints.add(point)
+//                lastVisitedCheckpoint = point
+//            } else if (point.type == PointOfInterestType.Waypoint){
+//                lastVisitedWaypoint = point
+//            }
+//            unvisitedPointOfInterests.remove(point)
+//        }
+//    }
 
     //endregion
 
@@ -533,7 +581,8 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
             //Log.d(TAG, "onRecieve")
             when (p1!!.action) {
                 C.LOCATION_UPDATE -> {
-                    updateLocation(
+                    //todo saadan siit hoopis viewmodelisse
+                    locationUpdateIn(
                         p1.getDoubleExtra(C.LOCATION_UPDATE_LAT, 0.0),
                         p1.getDoubleExtra(C.LOCATION_UPDATE_LON, 0.0)
                     )
