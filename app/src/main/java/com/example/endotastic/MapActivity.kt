@@ -1,6 +1,7 @@
 package com.example.endotastic
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
@@ -241,8 +242,10 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
 
     //region Location
 
+    @SuppressLint("MissingPermission")
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
+        mMap.isMyLocationEnabled = true
         redrawPointsOfInterest()
         viewModel.polylineOptions.value?.let { mMap.addPolyline(it) }
     }
@@ -275,15 +278,15 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
 
 
     private fun updateUserLocationMarker(lat: Double, lng: Double) {
-        if (userLocationMarker != null) {
-            userLocationMarker!!.remove()
-        }
-
-        val userIconOptions = MarkerOptions()
-            .position(LatLng(lat, lng))
-            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_CYAN))
-
-        userLocationMarker = mMap.addMarker(userIconOptions)
+//        if (userLocationMarker != null) {
+//            userLocationMarker!!.remove()
+//        }
+//
+//        val userIconOptions = MarkerOptions()
+//            .position(LatLng(lat, lng))
+//            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_CYAN))
+//
+//        userLocationMarker = mMap.addMarker(userIconOptions)
     }
 
     //endregion
