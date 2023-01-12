@@ -6,32 +6,20 @@ import android.graphics.Canvas
 import android.location.Location
 import android.location.LocationManager
 import androidx.core.content.ContextCompat
-import androidx.room.Entity
-import androidx.room.Ignore
-import androidx.room.PrimaryKey
 import com.example.endotastic.enums.PointOfInterestType
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.Marker
 
-@Entity
-data class PointOfInterest(
-    private val workoutId: Int,
-    @Ignore
-    internal val type: PointOfInterestType,
+class PointOfInterest(
+    val type: PointOfInterestType,
     val latitude: Double,
     val longitude: Double,
 ) {
-    @Ignore
-    var marker: Marker? = null
 
-    @PrimaryKey(autoGenerate = true)
-    internal val id: Int = 0
+    var marker: Marker? = null
     var isVisited: Boolean = false
     var visitedAt: Long? = null
-    var typeId: Int = type.id
-
-
     var distanceCoveredFrom: Int = 0
 
     private fun getLat() = latitude

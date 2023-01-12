@@ -1,5 +1,6 @@
 package com.example.endotastic
 
+import android.graphics.Color
 import android.location.Location
 import android.location.LocationManager
 import android.util.Log
@@ -7,6 +8,8 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.example.endotastic.enums.PointOfInterestType
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Polyline
+import com.google.android.gms.maps.model.PolylineOptions
 import com.google.firebase.crashlytics.buildtools.reloc.com.google.common.base.Stopwatch
 import java.util.concurrent.TimeUnit
 
@@ -35,6 +38,8 @@ class MapActivityViewModel : ViewModel() {
     var totalTimeElapsed = MutableLiveData<Long>(0)
         private set
 
+    var polylineOptions = MutableLiveData(PolylineOptions().width(10f).color(Color.RED))
+
     private var currentLocation: Location? = null
 
     companion object {
@@ -43,17 +48,11 @@ class MapActivityViewModel : ViewModel() {
 
     fun startEndWorkout() {
         if (workout.isActive) {
-            //end workout
             stopwatch.stop()
             workout.isActive = false
         } else {
             stopwatch.start()
             workout.isActive = true
-//            startDrawingPolyline()
-            /*
-            Tegelikult hakkan siin salvestama gpsi asukohti (MapPoint), et siis nende jargi
-            joonistada polyline
-             */
         }
     }
 
@@ -72,12 +71,26 @@ class MapActivityViewModel : ViewModel() {
 
 
     fun locationUpdateIn(lat: Double, lng: Double) {
-        updateLocation(lat, lng)
         if (workout.isActive) {
-            checkPointsOfInterest()
             updateDistances(lat, lng)
+        }
+
+        currentLocation = Location(LocationManager.GPS_PROVIDER).apply {
+            latitude = lat
+            longitude = lng
+        }
+//        updateLocation()
+        if (workout.isActive) {
+            drawPolyLine(lat, lng)
+            checkPointsOfInterest()
             updateTime()
         }
+    }
+
+    private fun drawPolyLine(lat: Double, lng: Double) {
+        workout.polyline?.remove()
+        val updatePolylineOptions = polylineOptions.value?.add(LatLng(lat, lng))
+        polylineOptions.value = updatePolylineOptions
     }
 
     private fun checkPointsOfInterest() {
@@ -134,29 +147,6 @@ class MapActivityViewModel : ViewModel() {
         totalTimeElapsed.value = stopwatch.elapsed(TimeUnit.SECONDS)
     }
 
-    private fun updateLocation(lat: Double, lng: Double) {
-        //Log.d(TAG, "updateLocation, ${lat} ${lng}")
-        Log.d(TAG, "updateLocation")
-        val latLng = LatLng(lat, lng)
-        var updatedLocation = MapPoint(workout.id, lat, lng, stopwatch.elapsed(TimeUnit.SECONDS))
-        // save to db later
-//        updateUserLocationMarker(latLng) // activitys
-        if (isWorkoutActive()) {
-            updateDistances(lat, lng) // liveData
-//            updatePaces() // liveData
-        }
-
-        currentLocation = Location(LocationManager.GPS_PROVIDER).apply {
-            latitude = latLng.latitude
-            longitude = latLng.longitude
-        }
-
-//        if (isWorkoutActive) {
-//            checkPoints()
-//        }
-//        updateCamera()
-    }
-
     private fun updateDistances(lat: Double, lng: Double) {
         if (!isWorkoutActive()) return
         val updatedLocation = Location(LocationManager.GPS_PROVIDER).apply {
@@ -166,8 +156,12 @@ class MapActivityViewModel : ViewModel() {
         if (currentLocation == null) return
         val addedDistance = currentLocation!!.distanceTo(updatedLocation).toInt()
         totalDistance.value = totalDistance.value?.plus(addedDistance)
-        //todo other distances
 
+        updateLastWaypoint(updatedLocation, addedDistance)
+        updateLastCheckpoint(updatedLocation, addedDistance)
+    }
+
+    private fun updateLastWaypoint(updatedLocation: Location, addedDistance: Int) {
         val lastWaypoint = workout.lastVisitedWaypoint
         if (lastWaypoint != null) {
             val totalDistance = lastWaypoint.distanceCoveredFrom + addedDistance
@@ -178,7 +172,9 @@ class MapActivityViewModel : ViewModel() {
                 updatedLocation.distanceTo(lastWaypoint.getLocation()).toInt()
             Log.d(TAG, "fromWaypoint: ${lastWaypoint.distanceCoveredFrom}")
         }
+    }
 
+    private fun updateLastCheckpoint(updatedLocation: Location, addedDistance: Int) {
         val lastCheckpoint = workout.lastVisitedCheckpoint
         if (lastCheckpoint != null) {
             val totalDistance = lastCheckpoint.distanceCoveredFrom + addedDistance
@@ -196,14 +192,11 @@ class MapActivityViewModel : ViewModel() {
         latitude: Double,
         longitude: Double
     ): PointOfInterest {
-        return PointOfInterest(workout.id, type, latitude, longitude)
+        return PointOfInterest(type, latitude, longitude)
     }
 
     fun savePointOfInterest(point: PointOfInterest) {
-//        if (updatedPoint.type == PointOfInterestType.Waypoint && workout.getCurrentWaypoint() != null) {
-//            workout.removeWaypoint()
-//        }
-        Log.d(TAG, "savePointOfInterest ${point.id}, ${point.type}")
+        Log.d(TAG, "savePointOfInterest ${point.type}")
         if (point.type == PointOfInterestType.Checkpoint) {
             workout.checkpoints.add(point)
         } else if (point.type == PointOfInterestType.Waypoint) {
@@ -213,5 +206,9 @@ class MapActivityViewModel : ViewModel() {
 
     fun removeCurrentWaypointMarker() {
         workout.currentWaypoint?.marker?.remove()
+    }
+
+    fun setPolyline(polyline: Polyline) {
+        workout.polyline = polyline
     }
 }

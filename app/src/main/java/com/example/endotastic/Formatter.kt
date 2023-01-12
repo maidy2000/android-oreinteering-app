@@ -8,16 +8,16 @@ class Formatter {
     }
 
     fun formatDistance(distance: Int): String {
+        if (distance <= 0) return "--.---"
         val kilometers = distance / 1000
-        val decameters = distance % 1000 / 10
-        val km = (if (kilometers < 10) "0" else "") + kilometers
-        val dam = (if (decameters < 10) "0" else "") + decameters
-        Log.d(TAG, "$km.$dam=$distance")
-        return "$km.${dam}km"
+        val meters = distance % 1000
+        val m = (if (meters < 10) "00" else if (meters < 100) "0" else "") + meters
+        Log.d(TAG, "$kilometers.$meters=$distance")
+        return "$kilometers.${m}"
     }
 
     fun formatPace(seconds: Long, meters: Int): String {
-        if (meters <= 0) return "--:--min/km"
+        if (meters <= 0) return "--:--"
         var pace = (seconds.toDouble() / meters.toDouble())
         pace = pace * 1000 / 60
 
@@ -26,7 +26,7 @@ class Formatter {
 
         val MM = (if (min.toInt() < 10) "0" else "") + min.toInt()
         val SS = (if (sec < 10) "0" else "") + sec.toInt()
-        return "$MM.${SS}min/km"
+        return "$MM.${SS}"
     }
 
     fun formatTime(elapsed: Long): String {
