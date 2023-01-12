@@ -4,29 +4,45 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.location.Location
+import android.location.LocationManager
 import androidx.core.content.ContextCompat
-import com.example.endotastic.enums.PointType
+import com.example.endotastic.enums.PointOfInterestType
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.Marker
 
-class Point(val type: PointType, val location: Location) {
-    var visited = false
+class PointOfInterest(
+    val type: PointOfInterestType,
+    val latitude: Double,
+    val longitude: Double,
+) {
+
     var marker: Marker? = null
+    var isVisited: Boolean = false
     var visitedAt: Long? = null
-    var totalDistanceFrom: Int = 0
+    var distanceCoveredFrom: Int = 0
+
+    private fun getLat() = latitude
+    private fun getLng() = longitude
+
+    fun getLocation() : Location {
+        return Location(LocationManager.GPS_PROVIDER).apply {
+            latitude = getLat()
+            longitude = getLng()
+        }
+    }
 
     fun getIcon(context: Context): BitmapDescriptor {
         return when (type) {
-            PointType.Waypoint -> {
-                if (visited) {
+            PointOfInterestType.Waypoint -> {
+                if (isVisited) {
                     BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
                 } else {
                     BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)
                 }
             }
-            PointType.Checkpoint -> {
-                if (visited) {
+            PointOfInterestType.Checkpoint -> {
+                if (isVisited) {
                     bitmapFromVector(context, R.drawable.flag_green)
                 } else {
                     bitmapFromVector(context, R.drawable.flag_red)
