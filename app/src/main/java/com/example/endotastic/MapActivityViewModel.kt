@@ -27,11 +27,12 @@ import com.example.endotastic.repositories.gpsSession.GpsSessionRepository
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Polyline
 import com.google.android.gms.maps.model.PolylineOptions
-import com.google.firebase.crashlytics.buildtools.reloc.com.google.common.base.Stopwatch
+import com.google.android.gms.maps.model.StyleSpan
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
-import java.util.concurrent.TimeUnit
+import java.time.temporal.ChronoUnit
+import java.util.*
 
 class MapActivityViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -49,7 +50,7 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
     private val broadcastReceiver = InnerBroadcastReceiver()
     private val broadcastReceiverIntentFilter = IntentFilter()
 
-    private val stopwatch: Stopwatch = Stopwatch.createUnstarted()
+//    private val stopwatch: Stopwatch = Stopwatch.createUnstarted()
 
     var totalDistance = MutableLiveData(0)
         private set
@@ -103,13 +104,13 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
     fun startEndGpsSession() {
         if (currentSession.isActive) {
             currentSession.isActive = false
-            stopwatch.stop()
+//            stopwatch.stop()
             currentSession.endedAt = LocalDateTime.now().toString()
             updateGpsSession(currentSession)
             addLocationList()
             // TODO finish screen and reset
         } else {
-            stopwatch.start()
+//            stopwatch.start()
             if (currentSession.id == 0) {
                 createNewSession()
             }
@@ -235,8 +236,8 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
         return allPoints
     }
 
-    fun getLastVisitedWaypointVisitedAt() = currentSession.lastVisitedWaypoint?.visitedAt
-    fun getLastVisitedCheckpointVisitedAt() = currentSession.lastVisitedCheckpoint?.visitedAt
+    fun getLastVisitedWaypointVisitedAt() = currentSession.lastVisitedWaypoint?.secondsToReach
+    fun getLastVisitedCheckpointVisitedAt() = currentSession.lastVisitedCheckpoint?.secondsToReach
 
 
     fun locationUpdateIn(lat: Double, lng: Double, acc: Float, alt: Double, vac: Float) {
@@ -267,8 +268,22 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
 
     private fun drawPolyLine(lat: Double, lng: Double) {
         currentSession.polyline?.remove()
-        val updatePolylineOptions = polylineOptions.value?.add(LatLng(lat, lng))
+        val updatePolylineOptions = polylineOptions.value
+        if (updatePolylineOptions != null) {
+            updatePolylineOptions.add(LatLng(lat, lng)).addSpan(StyleSpan(Color.BLUE))
+        }
+        Log.d("PolylineColor", updatePolylineOptions.toString())
         polylineOptions.value = updatePolylineOptions
+    }
+
+    private fun getPolylineColor(): Int {
+        val randInt = Random().nextInt(3)
+        when (randInt) {
+            2 -> return Color.RED
+            1 -> return Color.BLUE
+            0 -> return Color.GREEN
+        }
+        return 0
     }
 
     private fun checkPointsOfInterest() {
@@ -294,7 +309,7 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
 
         for (point in visited) {
             point.isVisited = true
-            point.visitedAt = stopwatch.elapsed(TimeUnit.SECONDS)
+            point.secondsToReach = ChronoUnit.SECONDS.between(LocalDateTime.parse(currentSession.startedAt), LocalDateTime.now())  //stopwatch.elapsed(TimeUnit.SECONDS)
             val results = FloatArray(1)
             Location.distanceBetween(
                 currentLocation!!.latitude, currentLocation!!.longitude, point.latitude, point.longitude, results
@@ -314,7 +329,8 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     private fun updateTime() {
-        totalTimeElapsed.value = stopwatch.elapsed(TimeUnit.SECONDS)
+
+        totalTimeElapsed.value = totalTimeElapsed.value?.plus(1) //stopwatch.elapsed(TimeUnit.SECONDS)
     }
 
     private fun updateDistances(locationIn: Location) {

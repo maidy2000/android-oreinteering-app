@@ -87,21 +87,22 @@ class LocationService : Service() {
     fun locationReceive(location: Location) {
         Log.d(TAG, "locationReceive")
 
-        if (currentLocation != null && 2 <= location.distanceTo(currentLocation) && location.distanceTo(currentLocation) <= 50) {
-            Log.d(TAG, "step of ${location.distanceTo(currentLocation)}m")
-//            distance += location.distanceTo(currentLocation)
+        if (currentLocation != null) {
+            val locationDistance = location.distanceTo(currentLocation!!)
+            if (locationDistance in 2.0..50.0) {
+                Log.d(TAG, "step of ${locationDistance}m")
 
-            val intent = Intent(C.LOCATION_UPDATE)
-            intent.putExtra(C.LOCATION_UPDATE_LAT, location.latitude)
-            intent.putExtra(C.LOCATION_UPDATE_LON, location.longitude)
-            intent.putExtra(C.LOCATION_UPDATE_ACC, location.accuracy)
-            intent.putExtra(C.LOCATION_UPDATE_ALT, location.altitude)
-            intent.putExtra(C.LOCATION_UPDATE_VAC, location.verticalAccuracyMeters)
-            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+                val intent = Intent(C.LOCATION_UPDATE)
+                intent.putExtra(C.LOCATION_UPDATE_LAT, location.latitude)
+                intent.putExtra(C.LOCATION_UPDATE_LON, location.longitude)
+                intent.putExtra(C.LOCATION_UPDATE_ACC, location.accuracy)
+                intent.putExtra(C.LOCATION_UPDATE_ALT, location.altitude)
+                intent.putExtra(C.LOCATION_UPDATE_VAC, location.verticalAccuracyMeters)
+                LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
 
+            }
         }
         currentLocation = location
-
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

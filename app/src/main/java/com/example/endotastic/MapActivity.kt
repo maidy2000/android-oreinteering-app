@@ -26,15 +26,12 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.example.endotastic.enums.CameraMode
 import com.example.endotastic.enums.GpsLocationType
 import com.example.endotastic.repositories.gpsLocation.GpsLocation
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.OnMapReadyCallback
-import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.*
 import com.google.android.gms.maps.model.*
 import java.util.*
 
 
-class MapActivity : AppCompatActivity(), OnMapReadyCallback {
+class MapActivity : AppCompatActivity(), OnMapReadyCallback, OnMapsSdkInitializedCallback {
     companion object {
         private val TAG = this::class.java.declaringClass!!.simpleName
     }
@@ -78,9 +75,10 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_map)
 
+        MapsInitializer.initialize(applicationContext, MapsInitializer.Renderer.LATEST, this)
+
         viewModel = ViewModelProvider(this)[MapActivityViewModel::class.java]
         viewModel.createLauncherIntent(Intent(this, MapActivity::class.java))
-
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
@@ -114,8 +112,8 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         buttonStartStop.setOnClickListener { viewModel.startEndGpsSession() }
 
         buttonToggleCameraDirection.setOnClickListener { toggleCameraDirection() }
-        buttonAddWaypoint.setOnClickListener { startAddPointOfInterest(GpsLocationType.WP) }
-        buttonAddCheckpoint.setOnClickListener { startAddPointOfInterest(GpsLocationType.CP) }
+        buttonAddWaypoint.setOnClickListener { startAddGpsLocation(GpsLocationType.WP) }
+        buttonAddCheckpoint.setOnClickListener { startAddGpsLocation(GpsLocationType.CP) }
         //endregion
 
         //region observe
@@ -128,7 +126,7 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         // startAddLocation
         viewModel.addLocation.observe(this) {
             if (it == null || it == GpsLocationType.LOC) return@observe
-            startAddPointOfInterest(it)
+            startAddGpsLocation(it)
             viewModel.addLocation.value = null
         }
 
@@ -350,7 +348,7 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
     //endregion
 
     //region Checkpoints, waypoints
-    private fun startAddPointOfInterest(type: GpsLocationType) {
+    private fun startAddGpsLocation(type: GpsLocationType) {
         //Log.d(TAG, "startAddPoint: $type")
 //        val savedCamera = currentCamera
 //        currentCamera = Camera(CameraMode.FREE, savedCamera.zoom)
@@ -436,6 +434,13 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
                     )
                 }
             }
+        }
+    }
+
+    override fun onMapsSdkInitialized(renderer: MapsInitializer.Renderer) {
+        when (renderer) {
+            MapsInitializer.Renderer.LATEST -> Log.d("MapsDemo", "The latest version of the renderer is used.")
+            MapsInitializer.Renderer.LEGACY -> Log.d("MapsDemo", "The legacy version of the renderer is used.")
         }
     }
 

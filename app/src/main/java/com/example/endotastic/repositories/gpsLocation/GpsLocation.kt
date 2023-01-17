@@ -34,7 +34,7 @@ data class GpsLocation(
     @Ignore
     var isVisited: Boolean = false
     @Ignore
-    var visitedAt: Long? = null
+    var secondsToReach: Long? = null
     @Ignore
     var distanceCoveredFrom: Int = 0
 
