@@ -1,6 +1,7 @@
 package com.example.endotastic
 
 import android.util.Log
+import kotlin.math.floor
 
 class Formatter {
     companion object {
@@ -31,8 +32,8 @@ class Formatter {
 
     fun formatTime(elapsed: Long): String {
         val secondsLeft: Long = elapsed % 3600 % 60
-        val minutes = Math.floor((elapsed % 3600 / 60).toDouble()).toInt()
-        val hours = Math.floor((elapsed / 3600).toDouble()).toInt()
+        val minutes = floor((elapsed % 3600 / 60).toDouble()).toInt()
+        val hours = floor((elapsed / 3600).toDouble()).toInt()
 
         val HH = (if (hours < 10) "0" else "") + hours
         val MM = (if (minutes < 10) "0" else "") + minutes

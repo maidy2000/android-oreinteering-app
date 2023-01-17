@@ -1,4 +1,4 @@
-package com.example.endotastic
+package com.example.endotastic.repositories.gpsLocation
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -6,20 +6,36 @@ import android.graphics.Canvas
 import android.location.Location
 import android.location.LocationManager
 import androidx.core.content.ContextCompat
-import com.example.endotastic.enums.PointOfInterestType
+import androidx.room.Entity
+import androidx.room.Ignore
+import androidx.room.PrimaryKey
+import com.example.endotastic.R
+import com.example.endotastic.enums.GpsLocationType
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.Marker
 
-class PointOfInterest(
-    val type: PointOfInterestType,
+@Entity(tableName = "gps_location_table")
+data class GpsLocation(
+    @PrimaryKey(autoGenerate = true)
+    val id: Int,
+    val typeId: String,
     val latitude: Double,
     val longitude: Double,
+    val accuracy: Float,
+    val altitude: Double,
+    val verticalAccuracy: Float,
+    val gpsSessionId: Int,
+    val recordedAt: String
 ) {
 
+    @Ignore
     var marker: Marker? = null
+    @Ignore
     var isVisited: Boolean = false
+    @Ignore
     var visitedAt: Long? = null
+    @Ignore
     var distanceCoveredFrom: Int = 0
 
     private fun getLat() = latitude
@@ -32,22 +48,23 @@ class PointOfInterest(
         }
     }
 
-    fun getIcon(context: Context): BitmapDescriptor {
-        return when (type) {
-            PointOfInterestType.Waypoint -> {
+    fun getIcon(context: Context): BitmapDescriptor? {
+        return when (typeId) {
+            GpsLocationType.WP.id -> {
                 if (isVisited) {
                     BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
                 } else {
                     BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_YELLOW)
                 }
             }
-            PointOfInterestType.Checkpoint -> {
+            GpsLocationType.CP.id -> {
                 if (isVisited) {
                     bitmapFromVector(context, R.drawable.flag_green)
                 } else {
                     bitmapFromVector(context, R.drawable.flag_red)
                 }
             }
+            else -> {return null}
         }
     }
 

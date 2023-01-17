@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">endotastic</string>
     <string name="title_activity_maps">MapsActivity</string>
+    <string name="emptyDistance">--.---</string>
+    <string name="emptyTime">--:--:--</string>
+    <string name="emptyPace">--:--</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
 </resources>
