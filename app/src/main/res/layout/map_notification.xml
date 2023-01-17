@@ -5,102 +5,132 @@
     android:layout_width="match_parent"
     android:layout_height="64dp"
     android:minHeight="64dp"
-    android:maxHeight="64dp">
-
-
-    <ImageButton
-        android:id="@+id/imageButtonStartStop"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        app:srcCompat="@drawable/play" />
+    android:maxHeight="64dp"
+    android:weightSum="3">
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:orientation="vertical">
+        android:weightSum="5"
+        android:orientation="horizontal">
+        <Button
+            android:id="@+id/buttonStartStopOnNotification"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:drawableTop="@drawable/play"
+            android:drawableBottom="@drawable/pause"
+            android:layout_weight="2"
+            android:backgroundTint="@color/material_dynamic_neutral80"/>
 
-        <TextView
-            android:id="@+id/textViewTotalDistance"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="--:--km" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:layout_weight="3">
 
-        <TextView
-            android:id="@+id/textViewTotalTimeElapsed"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="--:--:--" />
+            <TextView
+                android:id="@+id/textViewTotalDistance"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/emptyDistance" />
 
-        <TextView
-            android:id="@+id/textViewTotalPace"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="--:--min/km" />
+            <TextView
+                android:id="@+id/textViewTotalTimeElapsed"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="00:00:00" />
+
+            <TextView
+                android:id="@+id/textViewTotalPace"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/emptyPace" />
+        </LinearLayout>
     </LinearLayout>
-
-    <ImageButton
-        android:id="@+id/imageButtonAddCheckpoint"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        app:srcCompat="@drawable/flag_black" />
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:orientation="vertical">
+        android:weightSum="5"
+        android:orientation="horizontal">
 
         <TextView
-            android:id="@+id/textViewDistanceCoveredFromCheckpoint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="--.--km" />
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="2"
+            android:text="CP"
+            android:textSize="24dp"
+            android:textStyle="bold"
+            android:gravity="center"/>
 
-        <TextView
-            android:id="@+id/textViewDirectDistanceFromCheckpoint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="--.--km" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="3"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/textViewCheckpointPace"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="--:--min/km" />
+            <TextView
+                android:id="@+id/textViewDistanceCoveredFromCheckpoint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="1200.134" />
+
+            <TextView
+                android:id="@+id/textViewDirectDistanceFromCheckpoint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/emptyDistance" />
+
+            <TextView
+                android:id="@+id/textViewCheckpointPace"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/emptyPace" />
+        </LinearLayout>
     </LinearLayout>
-
-    <ImageButton
-        android:id="@+id/imageButtonAddWaypoint"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        app:srcCompat="@drawable/pin_drop" />
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_weight="1"
-        android:orientation="vertical">
+        android:weightSum="5"
+        android:orientation="horizontal">
 
         <TextView
-            android:id="@+id/textViewDistanceCoveredFromWaypoint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="--.--km" />
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="2"
+            android:text="WP"
+            android:textSize="24dp"
+            android:textStyle="bold"
+            android:gravity="center"/>
 
-        <TextView
-            android:id="@+id/textViewDirectDistanceFromWaypoint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="--.--km" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="3"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/textViewWaypointPace"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="--:--min/km" />
+            <TextView
+                android:id="@+id/textViewDistanceCoveredFromWaypoint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="1200.134" />
+
+            <TextView
+                android:id="@+id/textViewDirectDistanceFromWaypoint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/emptyDistance" />
+
+            <TextView
+                android:id="@+id/textViewWaypointPace"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/emptyPace" />
+        </LinearLayout>
     </LinearLayout>
+
 </LinearLayout>

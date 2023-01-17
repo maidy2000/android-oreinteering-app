@@ -1,6 +1,7 @@
 package com.example.endotastic
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -8,7 +9,6 @@ import android.location.Location
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
-import android.widget.RemoteViews
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -21,17 +21,15 @@ class LocationService : Service() {
     }
 
 
-    private var locationRequest = LocationRequest.Builder(2000)
-        .setWaitForAccurateLocation(false)
-        .setMinUpdateIntervalMillis(1000)
-        .setMaxUpdateDelayMillis(1000)
-        .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
-        .build()
+    private var locationRequest =
+        LocationRequest.Builder(2000).setWaitForAccurateLocation(false).setMinUpdateIntervalMillis(1000)
+            .setMaxUpdateDelayMillis(1000).setPriority(Priority.PRIORITY_HIGH_ACCURACY).build()
 
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var locationCallback: LocationCallback? = null
     private var currentLocation: Location? = null
+    private val formatter = Formatter()
 
 
     private var counter = 0
@@ -57,22 +55,21 @@ class LocationService : Service() {
     }
 
 
+    @SuppressLint("MissingPermission")
     private fun getLastLocation() {
         if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                this, Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
+                this, Manifest.permission.ACCESS_COARSE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            // TODO: Consider calling
+        ) {            // TODO: Consider calling
             //    ActivityCompat#requestPermissions
             // here to request the missing permissions, and then overriding
             //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
             //                                          int[] grantResults)
             // to handle the case where the user grants the permission. See the documentation
             // for ActivityCompat#requestPermissions for more details.
+
             return
         }
 
@@ -90,17 +87,18 @@ class LocationService : Service() {
     fun locationReceive(location: Location) {
         Log.d(TAG, "locationReceive")
 
-        if (currentLocation != null && 2 <= location.distanceTo(currentLocation) && location.distanceTo(currentLocation) <= 50
-        ) {
+        if (currentLocation != null && 2 <= location.distanceTo(currentLocation) && location.distanceTo(currentLocation) <= 50) {
             Log.d(TAG, "step of ${location.distanceTo(currentLocation)}m")
 //            distance += location.distanceTo(currentLocation)
 
             val intent = Intent(C.LOCATION_UPDATE)
             intent.putExtra(C.LOCATION_UPDATE_LAT, location.latitude)
             intent.putExtra(C.LOCATION_UPDATE_LON, location.longitude)
+            intent.putExtra(C.LOCATION_UPDATE_ACC, location.accuracy)
+            intent.putExtra(C.LOCATION_UPDATE_ALT, location.altitude)
+            intent.putExtra(C.LOCATION_UPDATE_VAC, location.verticalAccuracyMeters)
             LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
 
-            showNotification()
         }
         currentLocation = location
 
@@ -116,13 +114,12 @@ class LocationService : Service() {
         return START_STICKY
     }
 
+    @SuppressLint("MissingPermission")
     private fun requestLocationUpdates() {
         if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                this, Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_COARSE_LOCATION
+                this, Manifest.permission.ACCESS_COARSE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             // TODO: Consider calling
@@ -135,27 +132,45 @@ class LocationService : Service() {
             return
         }
         fusedLocationClient.requestLocationUpdates(
-            locationRequest,
-            locationCallback!!,
-            Looper.myLooper()
+            locationRequest, locationCallback!!, Looper.myLooper()
         )
     }
 
     private fun showNotification() {
         Log.d(TAG, "showNotification")
-        val notifyView = RemoteViews(packageName, R.layout.map_notification)
-        counter += 1
-        notifyView.setTextViewText(R.id.textViewTotalDistance, counter.toString())
+//        val notifyView = RemoteViews(packageName, R.layout.map_notification)
+
+//        notifyView.setTextViewText(R.id.textViewTotalDistance,
+//            viewModel.totalDistance.value?.let { formatter.formatDistance(it) })
+//
+//        notifyView.setTextViewText(R.id.textViewTotalTimeElapsed,
+//            viewModel.totalTimeElapsed.value?.let { formatter.formatTime(it) })
+//
+//        notifyView.setTextViewText(R.id.textViewTotalPace,
+//            viewModel.totalDistance.value?.let { distance ->
+//                viewModel.totalTimeElapsed.value?.let { time ->
+//                    formatter.formatPace(
+//                        time,
+//                        distance
+//                    )
+//                }
+//            })
+
+//        notifyView.setTextViewText(R.id.textViewDistanceCoveredFromWaypoint, formatter.formatDistance())
+//        notifyView.setTextViewText(R.id.textViewDirectDistanceFromWaypoint, viewModel.totalDistance.value.toString())
+//        notifyView.setTextViewText(R.id.textViewWaypointPace, viewModel.totalDistance.value.toString())
+//
+//        notifyView.setTextViewText(R.id.textViewDistanceCoveredFromCheckpoint, viewModel.totalDistance.value.toString())
+//        notifyView.setTextViewText(R.id.textViewDirectDistanceFromCheckpoint, viewModel.totalDistance.value.toString())
+//        notifyView.setTextViewText(R.id.textViewCheckpointPace, viewModel.totalDistance.value.toString())
 
 
-        val builder = NotificationCompat
-            .Builder(applicationContext, C.NOTIFICATION_CHANNEL)
-            .setSmallIcon(R.drawable.map)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setOngoing(true)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        val builder =
+            NotificationCompat.Builder(applicationContext, C.NOTIFICATION_CHANNEL).setSmallIcon(R.drawable.map)
+                .setPriority(NotificationCompat.PRIORITY_MIN).setOngoing(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
 
-        builder.setContent(notifyView)
+//        builder.setContent(notifyView)
 
         startForeground(C.NOTIFICATION_ID, builder.build())
     }

@@ -32,7 +32,7 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="--:--" />
+                android:text="@string/emptyDistance" />
 
             <TextView
                 android:id="@+id/textViewTotalTimeElapsed"
@@ -40,7 +40,7 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="--:--:--" />
+                android:text="@string/emptyTime" />
 
             <TextView
                 android:id="@+id/textViewTotalPace"
@@ -48,11 +48,11 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="--:--" />
+                android:text="@string/emptyPace" />
         </LinearLayout>
 
         <ImageButton
-            android:id="@+id/imageButtonStartStop"
+            android:id="@+id/buttonStartStop"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
@@ -80,7 +80,7 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="----" />
+                android:text="@string/emptyDistance" />
 
             <TextView
                 android:id="@+id/textViewDirectDistanceFromCheckpoint"
@@ -88,7 +88,7 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="----" />
+                android:text="@string/emptyDistance" />
 
             <TextView
                 android:id="@+id/textViewCheckpointPace"
@@ -96,11 +96,11 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="--:--" />
+                android:text="@string/emptyPace" />
         </LinearLayout>
 
         <ImageButton
-            android:id="@+id/imageButtonAddCheckpoint"
+            android:id="@+id/buttonAddCheckpointOnNotification"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
@@ -126,7 +126,7 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="----" />
+                android:text="@string/emptyDistance" />
 
             <TextView
                 android:id="@+id/textViewDirectDistanceFromWaypoint"
@@ -134,7 +134,7 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="----" />
+                android:text="@string/emptyDistance" />
 
             <TextView
                 android:id="@+id/textViewWaypointPace"
@@ -142,11 +142,11 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="--:--" />
+                android:text="@string/emptyPace" />
         </LinearLayout>
 
         <ImageButton
-            android:id="@+id/imageButtonAddWaypoint"
+            android:id="@+id/buttonAddWaypoint"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"

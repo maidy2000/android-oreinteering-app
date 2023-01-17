@@ -24,7 +24,8 @@ import androidx.core.app.ActivityCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.example.endotastic.enums.CameraMode
-import com.example.endotastic.enums.PointOfInterestType
+import com.example.endotastic.enums.GpsLocationType
+import com.example.endotastic.repositories.gpsLocation.GpsLocation
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -65,7 +66,6 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private var currentCamera: Camera = Camera()
     private val formatter: Formatter = Formatter()
-    private var userLocationMarker: Marker? = null
     private var broadcastReceiver = InnerBroadcastReceiver()
     private var broadcastReceiverIntentFilter = IntentFilter()
     private var currentLocation: Location? = C.TALLINN_LOCATION
@@ -76,8 +76,11 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.main_activity)
-        viewModel = ViewModelProvider(this).get(MapActivityViewModel::class.java)
+        setContentView(R.layout.activity_map)
+
+        viewModel = ViewModelProvider(this)[MapActivityViewModel::class.java]
+        viewModel.createLauncherIntent(Intent(this, MapActivity::class.java))
+
 
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
@@ -89,14 +92,14 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
 
         //region findViewById
         buttonCancel = findViewById(R.id.imageButtonCancel)
+        buttonStartStop = findViewById(R.id.buttonStartStop)
         buttonConfirm = findViewById(R.id.imageButtonConfirm)
         textViewTotalPace = findViewById(R.id.textViewTotalPace)
-        buttonStartStop = findViewById(R.id.imageButtonStartStop)
-        buttonAddWaypoint = findViewById(R.id.imageButtonAddWaypoint)
+        buttonAddWaypoint = findViewById(R.id.buttonAddWaypoint)
         textViewWaypointPace = findViewById(R.id.textViewWaypointPace)
         imageViewWaypointPointer = findViewById(R.id.imageViewWaypoint)
         textViewTotalDistance = findViewById(R.id.textViewTotalDistance)
-        buttonAddCheckpoint = findViewById(R.id.imageButtonAddCheckpoint)
+        buttonAddCheckpoint = findViewById(R.id.buttonAddCheckpointOnNotification)
         textViewCheckpointPace = findViewById(R.id.textViewCheckpointPace)
         imageViewCheckpointPointer = findViewById(R.id.imageViewCheckpoint)
         textViewTotalTimeElapsed = findViewById(R.id.textViewTotalTimeElapsed)
@@ -108,13 +111,27 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         //endregion
 
         //region setOnClickListener
-        buttonStartStop.setOnClickListener { startEndWorkout() }
+        buttonStartStop.setOnClickListener { viewModel.startEndGpsSession() }
+
         buttonToggleCameraDirection.setOnClickListener { toggleCameraDirection() }
-        buttonAddWaypoint.setOnClickListener { startAddPointOfInterest(PointOfInterestType.Waypoint) }
-        buttonAddCheckpoint.setOnClickListener { startAddPointOfInterest(PointOfInterestType.Checkpoint) }
+        buttonAddWaypoint.setOnClickListener { startAddPointOfInterest(GpsLocationType.WP) }
+        buttonAddCheckpoint.setOnClickListener { startAddPointOfInterest(GpsLocationType.CP) }
         //endregion
 
         //region observe
+
+        // isCurrentSessionActive
+        viewModel.isCurrentSessionActive.observe(this) {
+            startEndGpsSession()
+        }
+
+        // startAddLocation
+        viewModel.addLocation.observe(this) {
+            if (it == null || it == GpsLocationType.LOC) return@observe
+            startAddPointOfInterest(it)
+            viewModel.addLocation.value = null
+        }
+
         // totalTimeElapsed & totalPace
         viewModel.totalTimeElapsed.observe(this) {
             textViewTotalTimeElapsed.text = formatter.formatTime(it)
@@ -199,12 +216,15 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         broadcastReceiverIntentFilter.addAction(C.LOCATION_UPDATE)
+        broadcastReceiverIntentFilter.addAction(C.PLAY_PAUSE)
     }
+
 
     override fun onResume() {
         super.onResume()
         Log.d(TAG, "onResume")
 
+        //todo kas seda on vaja?
         LocalBroadcastManager.getInstance(this)
             .registerReceiver(broadcastReceiver, broadcastReceiverIntentFilter)
     }
@@ -218,6 +238,7 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onDestroy()
         Log.d(TAG, "onDestroy")
         LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceiver)
+        //todo destroy notification and LocationService
     }
 
     //endregion
@@ -225,15 +246,13 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
     private fun redrawPointsOfInterest() {
         mMap.clear()
         for (point in viewModel.getPointsOfInterests()) {
-            Log.d(TAG, "redrawPointsOfInterest, type=${point.type}")
+            Log.d(TAG, "redrawPointsOfInterest, type=${point.typeId}")
             drawPoint(point)
         }
     }
 
-    private fun startEndWorkout() {
-        viewModel.startEndWorkout()
-
-        if (viewModel.isWorkoutActive()) {
+    private fun startEndGpsSession() {
+        if (viewModel.isCurrentSessionActive.value == true) {
             buttonStartStop.setImageDrawable(AppCompatResources.getDrawable(this, R.drawable.pause))
         } else {
             buttonStartStop.setImageDrawable(AppCompatResources.getDrawable(this, R.drawable.play))
@@ -245,6 +264,25 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
     @SuppressLint("MissingPermission")
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
+
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return
+        }
+
         mMap.isMyLocationEnabled = true
         redrawPointsOfInterest()
         viewModel.polylineOptions.value?.let { mMap.addPolyline(it) }
@@ -254,39 +292,25 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         //Log.d(TAG, "startLocationService")
         val intent = Intent(applicationContext, LocationService::class.java)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // long running bgr service without ui (with notification)
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//            // long running bgr service without ui (with notification)
+//            startForegroundService(intent)
+//        } else {
+        startService(intent)
+//        }
     }
 
-    fun locationUpdateIn(lat: Double, lng: Double) {
+    fun locationUpdateIn(lat: Double, lng: Double, acc: Float, alt: Double, vac: Float) {
         Log.d(TAG, "updateLocation, ${lat} ${lng}")
-        viewModel.locationUpdateIn(lat, lng)
+        viewModel.locationUpdateIn(lat, lng, acc, alt, vac)
 
         if (!this::mMap.isInitialized) return
-        updateUserLocationMarker(lat, lng)
         currentLocation = Location(LocationManager.GPS_PROVIDER).apply {
             latitude = lat
             longitude = lng
         }
 
         updateCamera()
-    }
-
-
-    private fun updateUserLocationMarker(lat: Double, lng: Double) {
-//        if (userLocationMarker != null) {
-//            userLocationMarker!!.remove()
-//        }
-//
-//        val userIconOptions = MarkerOptions()
-//            .position(LatLng(lat, lng))
-//            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_CYAN))
-//
-//        userLocationMarker = mMap.addMarker(userIconOptions)
     }
 
     //endregion
@@ -326,13 +350,13 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
     //endregion
 
     //region Checkpoints, waypoints
-    private fun startAddPointOfInterest(type: PointOfInterestType) {
+    private fun startAddPointOfInterest(type: GpsLocationType) {
         //Log.d(TAG, "startAddPoint: $type")
 //        val savedCamera = currentCamera
 //        currentCamera = Camera(CameraMode.FREE, savedCamera.zoom)
         showPointer(type)
         buttonConfirm.setOnClickListener {
-            var pointOfInterest = viewModel.createPointOfInterest(
+            var pointOfInterest = viewModel.createGpsLocation(
                 type = type,
                 latitude = mMap.cameraPosition.target.latitude,
                 longitude = mMap.cameraPosition.target.longitude
@@ -346,20 +370,20 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         buttonCancel.visibility = View.VISIBLE
     }
 
-    private fun drawPoint(pointOfInterest: PointOfInterest): PointOfInterest {
-        pointOfInterest.marker?.remove()
+    private fun drawPoint(gpsLocation: GpsLocation): GpsLocation {
+        gpsLocation.marker?.remove()
 
-        if (pointOfInterest.type == PointOfInterestType.Waypoint) {
+        if (gpsLocation.typeId == GpsLocationType.WP.id) {
             viewModel.removeCurrentWaypointMarker()
         }
 
         val pointMarker = MarkerOptions()
-            .position(LatLng(pointOfInterest.latitude, pointOfInterest.longitude))
-            .icon(pointOfInterest.getIcon(this))
+            .position(LatLng(gpsLocation.latitude, gpsLocation.longitude))
+            .icon(gpsLocation.getIcon(this))
 
         val marker = mMap.addMarker(pointMarker)
-        pointOfInterest.marker = marker
-        return pointOfInterest
+        gpsLocation.marker = marker
+        return gpsLocation
     }
 
     private fun endAddPoint(/*savedCamera: Camera*/) {
@@ -369,11 +393,11 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
 //        currentCamera = savedCamera
     }
 
-    private fun showPointer(type: PointOfInterestType) {
+    private fun showPointer(type: GpsLocationType) {
         clearPointers()
-        if (type == PointOfInterestType.Waypoint) {
+        if (type == GpsLocationType.WP) {
             imageViewWaypointPointer.visibility = View.VISIBLE
-        } else if (type == PointOfInterestType.Checkpoint) {
+        } else if (type == GpsLocationType.CP) {
             imageViewCheckpointPointer.visibility = View.VISIBLE
         }
     }
@@ -400,18 +424,19 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private inner class InnerBroadcastReceiver : BroadcastReceiver() {
         override fun onReceive(p0: Context?, p1: Intent?) {
-            //Log.d(TAG, "onRecieve")
+            Log.d(TAG, "onReceive ${p1.toString()}")
             when (p1!!.action) {
                 C.LOCATION_UPDATE -> {
-                    //todo saadan siit hoopis viewmodelisse
                     locationUpdateIn(
                         p1.getDoubleExtra(C.LOCATION_UPDATE_LAT, 0.0),
-                        p1.getDoubleExtra(C.LOCATION_UPDATE_LON, 0.0)
+                        p1.getDoubleExtra(C.LOCATION_UPDATE_LON, 0.0),
+                        p1.getFloatExtra(C.LOCATION_UPDATE_ACC, 0f),
+                        p1.getDoubleExtra(C.LOCATION_UPDATE_ALT, 0.0),
+                        p1.getFloatExtra(C.LOCATION_UPDATE_VAC, 0f),
                     )
                 }
             }
         }
-
     }
 
 
