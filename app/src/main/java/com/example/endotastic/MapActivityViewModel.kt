@@ -110,14 +110,20 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
             // TODO finish screen and reset
         } else {
             stopwatch.start()
-            currentSession = GpsSession(
-                0, generateSessionName(), "Session on ${LocalDateTime.now()}", LocalDateTime.now().toString()
-            )
-            addGpsSession(currentSession)
+            if (currentSession.id == 0) {
+                createNewSession()
+            }
             currentSession.isActive = true
         }
         isCurrentSessionActive.value = currentSession.isActive
         Log.d(TAG, "change isActive=${currentSession.isActive}")
+    }
+
+    private fun createNewSession() {
+        currentSession = GpsSession(
+            0, generateSessionName(), "Session on ${LocalDateTime.now()}", LocalDateTime.now().toString()
+        )
+        addGpsSession(currentSession)
     }
 
     private fun addGpsSession(gpsSession: GpsSession) {
@@ -354,6 +360,9 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
         altitude: Double = 0.0,
         verticalAccuracy: Float = 0f
     ): GpsLocation {
+        if (currentSession.id == 0) {
+            createNewSession()
+        }
         val gpsLocation = GpsLocation(
             id = 0,
             typeId = type.id,
@@ -386,8 +395,8 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
     private fun addLocationList() {
         viewModelScope.launch(Dispatchers.IO) {
             locationRepository.addGpsLocations(locationList)
+            locationList.clear()
         }
-        locationList.clear()
     }
 
     fun savePointOfInterest(point: GpsLocation) {
