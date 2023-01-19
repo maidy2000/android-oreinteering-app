@@ -6,8 +6,9 @@ import android.location.LocationManager
 class C {
     companion object {
         const val NOTIFICATION_CHANNEL = "Default Channel"
-        const val NOTIFICATION_ID = 1234
-        const val PLAY_PAUSE = "endotastic.PLAY_PAUSE"
+        const val API = "https://sportmap.akaver.com/api/v1/"
+        const val NOTIFICATION_ID = 322321
+        const val START_SESSION = "endotastic.PLAY_PAUSE"
         const val LOCATION_UPDATE = "endotastic.LOCATION_UPDATE"
         const val LOCATION_UPDATE_LAT = "endotastic.LOCATION_UPDATE_LAT"
         const val LOCATION_UPDATE_LON = "endotastic.LOCATION_UPDATE_LON"

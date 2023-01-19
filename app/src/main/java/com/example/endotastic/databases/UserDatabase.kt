@@ -1,28 +1,26 @@
 package com.example.endotastic.databases
 
 import android.content.Context
-import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.example.endotastic.daos.GpsLocationDao
-import com.example.endotastic.repositories.gpsLocation.GpsLocation
+import com.example.endotastic.daos.UserDao
+import com.example.endotastic.repositories.user.User
 
 @Database(
-    entities = [GpsLocation::class],
+    entities = [User::class],
     version = 1,
     exportSchema = true
-//    autoMigrations = [ AutoMigration(from = 1, to = 2)]
- )
-abstract class GpsLocationDatabase : RoomDatabase(){
+)
+abstract class UserDatabase : RoomDatabase() {
 
-    abstract fun gpsLocationDao(): GpsLocationDao
+    abstract fun getUserDao(): UserDao
 
     companion object {
         @Volatile
-        private var INSTANCE: GpsLocationDatabase? = null
+        private var INSTANCE: UserDatabase? = null
 
-        fun getDatabase(context: Context): GpsLocationDatabase {
+        fun getDatabase(context: Context): UserDatabase {
             val tempInstance = INSTANCE
             if (tempInstance != null) {
                 return tempInstance
@@ -30,8 +28,8 @@ abstract class GpsLocationDatabase : RoomDatabase(){
             synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
-                    GpsLocationDatabase::class.java,
-                    "gps_location_database"
+                    UserDatabase::class.java,
+                    "user_database"
                 ).build()
                 INSTANCE = instance
                 return instance

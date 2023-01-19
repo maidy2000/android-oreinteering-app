@@ -1,135 +1,172 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:orientation="horizontal"
     android:layout_width="match_parent"
-    android:layout_height="64dp"
+    android:layout_height="72dp"
+    android:background="@color/white"
+    android:maxHeight="72dp"
     android:minHeight="64dp"
-    android:maxHeight="64dp"
-    android:weightSum="3">
+    android:orientation="vertical"
+    android:weightSum="5">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:weightSum="5"
-        android:orientation="horizontal">
-        <Button
-            android:id="@+id/buttonStartStopOnNotification"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:drawableTop="@drawable/play"
-            android:drawableBottom="@drawable/pause"
-            android:layout_weight="2"
-            android:backgroundTint="@color/material_dynamic_neutral80"/>
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:layout_weight="3">
-
-            <TextView
-                android:id="@+id/textViewTotalDistance"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/emptyDistance" />
-
-            <TextView
-                android:id="@+id/textViewTotalTimeElapsed"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="00:00:00" />
-
-            <TextView
-                android:id="@+id/textViewTotalPace"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/emptyPace" />
-        </LinearLayout>
+        <TextView
+            android:id="@+id/textViewSessionStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Session status: Not started"
+            android:textSize="11dp"
+/>
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:weightSum="5"
-        android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="2"
-            android:text="CP"
-            android:textSize="24dp"
-            android:textStyle="bold"
-            android:gravity="center"/>
+        android:layout_height="0dp"
+        android:layout_weight="4"
+        android:background="@color/white"
+        android:orientation="horizontal"
+        android:weightSum="3">
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_weight="3"
-            android:orientation="vertical">
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:weightSum="5">
 
-            <TextView
-                android:id="@+id/textViewDistanceCoveredFromCheckpoint"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="1200.134" />
 
-            <TextView
-                android:id="@+id/textViewDirectDistanceFromCheckpoint"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/emptyDistance" />
+            <Button
+                android:id="@+id/buttonStartStopOnNotification"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="2"
+                android:backgroundTint="@color/gray"
+                android:drawableTop="@drawable/play" />
 
-            <TextView
-                android:id="@+id/textViewCheckpointPace"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/emptyPace" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="3"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/textViewTotalDistance"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/emptyDistance"
+                    android:textColor="@color/black" />
+
+                <TextView
+                    android:id="@+id/textViewTotalTimeElapsed"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="00:00:00"
+                    android:textColor="@color/black" />
+
+                <TextView
+                    android:id="@+id/textViewTotalPace"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/emptyPace"
+                    android:textColor="@color/black" />
+            </LinearLayout>
         </LinearLayout>
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:weightSum="5"
-        android:orientation="horizontal">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="2"
-            android:text="WP"
-            android:textSize="24dp"
-            android:textStyle="bold"
-            android:gravity="center"/>
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_weight="3"
-            android:orientation="vertical">
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:weightSum="5">
 
             <TextView
-                android:id="@+id/textViewDistanceCoveredFromWaypoint"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="1200.134" />
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="2"
+                android:gravity="center"
+                android:text="CP"
+                android:textColor="@color/black"
+                android:textSize="24dp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="3"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/textViewDistanceCoveredFromCheckpoint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="1200.134"
+                    android:textColor="@color/black" />
+
+                <TextView
+                    android:id="@+id/textViewDirectDistanceFromCheckpoint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/emptyDistance"
+                    android:textColor="@color/black" />
+
+                <TextView
+                    android:id="@+id/textViewCheckpointPace"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/emptyPace"
+                    android:textColor="@color/black" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:weightSum="5">
 
             <TextView
-                android:id="@+id/textViewDirectDistanceFromWaypoint"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/emptyDistance" />
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="2"
+                android:gravity="center"
+                android:text="WP"
+                android:textColor="@color/black"
+                android:textSize="24dp"
+                android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/textViewWaypointPace"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/emptyPace" />
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="3"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/textViewDistanceCoveredFromWaypoint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="1200.134"
+                    android:textColor="@color/black" />
+
+                <TextView
+                    android:id="@+id/textViewDirectDistanceFromWaypoint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/emptyDistance"
+                    android:textColor="@color/black" />
+
+                <TextView
+                    android:id="@+id/textViewWaypointPace"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/emptyPace"
+                    android:textColor="@color/black" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 

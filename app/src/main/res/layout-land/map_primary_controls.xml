@@ -32,7 +32,8 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="@string/emptyDistance" />
+                android:text="@string/emptyDistance"
+                android:textColor="@color/black" />
 
             <TextView
                 android:id="@+id/textViewTotalTimeElapsed"
@@ -40,7 +41,8 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="@string/emptyTime" />
+                android:text="@string/emptyTime"
+                android:textColor="@color/black" />
 
             <TextView
                 android:id="@+id/textViewTotalPace"
@@ -48,7 +50,8 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="@string/emptyPace" />
+                android:text="@string/emptyPace"
+                android:textColor="@color/black" />
         </LinearLayout>
 
         <ImageButton
@@ -80,7 +83,8 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="@string/emptyDistance" />
+                android:text="@string/emptyDistance"
+                android:textColor="@color/black" />
 
             <TextView
                 android:id="@+id/textViewDirectDistanceFromCheckpoint"
@@ -88,7 +92,8 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="@string/emptyDistance" />
+                android:text="@string/emptyDistance"
+                android:textColor="@color/black" />
 
             <TextView
                 android:id="@+id/textViewCheckpointPace"
@@ -96,7 +101,8 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="@string/emptyPace" />
+                android:text="@string/emptyPace"
+                android:textColor="@color/black" />
         </LinearLayout>
 
         <ImageButton
@@ -126,7 +132,8 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="@string/emptyDistance" />
+                android:text="@string/emptyDistance"
+                android:textColor="@color/black" />
 
             <TextView
                 android:id="@+id/textViewDirectDistanceFromWaypoint"
@@ -134,7 +141,8 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="@string/emptyDistance" />
+                android:text="@string/emptyDistance"
+                android:textColor="@color/black" />
 
             <TextView
                 android:id="@+id/textViewWaypointPace"
@@ -142,7 +150,8 @@
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="@string/emptyPace" />
+                android:text="@string/emptyPace"
+                android:textColor="@color/black" />
         </LinearLayout>
 
         <ImageButton

@@ -29,10 +29,6 @@ class LocationService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var locationCallback: LocationCallback? = null
     private var currentLocation: Location? = null
-    private val formatter = Formatter()
-
-
-    private var counter = 0
 
     override fun onBind(intent: Intent): IBinder {
         TODO("Return the communication channel to the service.")
@@ -85,20 +81,27 @@ class LocationService : Service() {
     }
 
     fun locationReceive(location: Location) {
-        Log.d(TAG, "locationReceive")
+        Log.d(TAG, "locationReceive: $location")
 
-        if (currentLocation != null && 2 <= location.distanceTo(currentLocation) && location.distanceTo(currentLocation) <= 50) {
-            Log.d(TAG, "step of ${location.distanceTo(currentLocation)}m")
-//            distance += location.distanceTo(currentLocation)
+        //TODO "if" is replaced with "try" for testing purposes
 
-            val intent = Intent(C.LOCATION_UPDATE)
-            intent.putExtra(C.LOCATION_UPDATE_LAT, location.latitude)
-            intent.putExtra(C.LOCATION_UPDATE_LON, location.longitude)
-            intent.putExtra(C.LOCATION_UPDATE_ACC, location.accuracy)
-            intent.putExtra(C.LOCATION_UPDATE_ALT, location.altitude)
-            intent.putExtra(C.LOCATION_UPDATE_VAC, location.verticalAccuracyMeters)
-            LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+        try {
+            if (currentLocation != null
+                && 2 <= location.distanceTo(currentLocation)
+                && location.distanceTo(currentLocation) <= 50
+            ) {
+                Log.d(TAG, "step of ${location.distanceTo(currentLocation)}m")
 
+                val intent = Intent(C.LOCATION_UPDATE)
+                intent.putExtra(C.LOCATION_UPDATE_LAT, location.latitude)
+                intent.putExtra(C.LOCATION_UPDATE_LON, location.longitude)
+                intent.putExtra(C.LOCATION_UPDATE_ACC, location.accuracy)
+                intent.putExtra(C.LOCATION_UPDATE_ALT, location.altitude)
+                intent.putExtra(C.LOCATION_UPDATE_VAC, location.verticalAccuracyMeters)
+                LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "Exception: ${e.message}")
         }
         currentLocation = location
 

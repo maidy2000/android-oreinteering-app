@@ -10,7 +10,7 @@ import com.example.endotastic.repositories.gpsSession.GpsSession
 
 @Dao
 interface GpsSessionDao {
-    @Insert(onConflict = OnConflictStrategy.IGNORE) //todo kas muuta
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun addGpsSession(gpsSession: GpsSession): Long
 
     @Query("SELECT * FROM gps_session_table ORDER BY id ASC")

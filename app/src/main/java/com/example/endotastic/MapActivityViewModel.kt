@@ -17,19 +17,28 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import com.android.volley.Response
+import com.android.volley.toolbox.StringRequest
 import com.example.endotastic.databases.GpsLocationDatabase
 import com.example.endotastic.databases.GpsSessionDatabase
+import com.example.endotastic.databases.UserDatabase
 import com.example.endotastic.enums.GpsLocationType
 import com.example.endotastic.repositories.gpsLocation.GpsLocation
 import com.example.endotastic.repositories.gpsLocation.GpsLocationRepository
 import com.example.endotastic.repositories.gpsSession.GpsSession
 import com.example.endotastic.repositories.gpsSession.GpsSessionRepository
+import com.example.endotastic.repositories.user.User
+import com.example.endotastic.repositories.user.UserRepository
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Polyline
 import com.google.android.gms.maps.model.PolylineOptions
 import com.google.firebase.crashlytics.buildtools.reloc.com.google.common.base.Stopwatch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import org.json.JSONTokener
 import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 
@@ -37,13 +46,14 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
 
     private val formatter: Formatter = Formatter()
 
+    private val userRepository: UserRepository
     private val sessionRepository: GpsSessionRepository
     private val locationRepository: GpsLocationRepository
 
     private lateinit var mapIntent: Intent
 
     private var currentSession: GpsSession = GpsSession(
-        0, generateSessionName(), "Session on ${LocalDateTime.now()}", LocalDateTime.now().toString()
+        0, "noname", "nodesc", LocalDateTime.MIN.toString()
     )
 
     private val broadcastReceiver = InnerBroadcastReceiver()
@@ -80,8 +90,8 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
     var polylineOptions = MutableLiveData(PolylineOptions().width(10f).color(Color.RED))
     private var notificationManagerCompat: NotificationManagerCompat
 
+    private lateinit var user: User
     private var currentLocation: Location? = null
-    private var locationList = mutableListOf<GpsLocation>()
 
     companion object {
         private val TAG = this::class.java.declaringClass!!.simpleName
@@ -95,41 +105,92 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
         val gpsLocationDao = GpsLocationDatabase.getDatabase(application).gpsLocationDao()
         locationRepository = GpsLocationRepository(gpsLocationDao)
 
+        val userDao = UserDatabase.getDatabase(application).getUserDao()
+        userRepository = UserRepository(userDao)
+
         notificationManagerCompat = NotificationManagerCompat.from(application)
-        broadcastReceiverIntentFilter.addAction(C.PLAY_PAUSE)
+        broadcastReceiverIntentFilter.addAction(C.START_SESSION)
         application.registerReceiver(broadcastReceiver, broadcastReceiverIntentFilter)
     }
 
     fun startEndGpsSession() {
         if (currentSession.isActive) {
+            // Stop
             currentSession.isActive = false
             stopwatch.stop()
             currentSession.endedAt = LocalDateTime.now().toString()
             updateGpsSession(currentSession)
-            addLocationList()
             // TODO finish screen and reset
         } else {
+            // Start
             stopwatch.start()
+            user = getUser()
             if (currentSession.id == 0) {
                 createNewSession()
             }
             currentSession.isActive = true
         }
         isCurrentSessionActive.value = currentSession.isActive
-        Log.d(TAG, "change isActive=${currentSession.isActive}")
+         Log.d(TAG, "change isActive=${currentSession.isActive}")
     }
+
 
     private fun createNewSession() {
         currentSession = GpsSession(
             0, generateSessionName(), "Session on ${LocalDateTime.now()}", LocalDateTime.now().toString()
         )
-        addGpsSession(currentSession)
+        startOnlineSession()
+    }
+
+    private fun startOnlineSession() {
+        val url = C.API + "GpsSessions"
+        var handler = HttpSingletonHandler.getInstance(getApplication())
+
+        var httpRequest = object : StringRequest(
+            Method.POST,
+            url,
+            Response.Listener { response ->
+                 Log.d("Response.Listener", response)
+                val json = JSONTokener(response).nextValue() as JSONObject
+                val onlineSessionId = json.getString("id")
+                currentSession.onlineSessionId = onlineSessionId
+                addGpsSession(currentSession)
+            },
+            Response.ErrorListener { error ->   /*Log.d("Response.ErrorListener", "${error.message} ${error.networkResponse.statusCode}")*/}
+        ){
+            override fun getBodyContentType(): String {
+                return "application/json"
+            }
+
+            override fun getHeaders(): MutableMap<String, String> {
+                val params = mutableMapOf<String, String>()
+                params["Authorization"] = "Bearer " + user.token
+                 Log.d(TAG, "getHeaders()")
+                return params
+            }
+
+            override fun getBody(): ByteArray {
+                val params = HashMap<String, Any>()
+                params["name"] = currentSession.name
+                params["description"] = currentSession.description
+                params["recordedAt"] = currentSession.startedAt
+                params["paceMin"] = 60
+                params["paceMax"] = 100
+
+                var body = JSONObject(params as Map<*, *>).toString()
+                 Log.d("getBody", body)
+
+                return body.toByteArray()
+            }
+        }
+
+        handler.addToRequestQueue(httpRequest)
     }
 
     private fun addGpsSession(gpsSession: GpsSession) {
         viewModelScope.launch(Dispatchers.IO) {
             val id = sessionRepository.addGpsSession(gpsSession)
-            Log.d(TAG, "session id=${currentSession.id} replaced with id=${id}")
+             Log.d(TAG, "session id=${currentSession.id} replaced with id=${id}")
             currentSession.id = id.toInt()
         }
     }
@@ -141,7 +202,7 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     private fun showNotification() {
-        Log.d(TAG, "showNotification")
+         Log.d(TAG, "showNotification")
         val notifyView = RemoteViews(getApplication<Application>().packageName, R.layout.map_notification)
 
         notifyView.setTextViewText(
@@ -187,11 +248,23 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
             }
         })
 
+        var sessionStatusText = "Not started"
+        if (currentSession.isActive) {
+            sessionStatusText = "Active"
+        }
+        if (!currentSession.isActive && currentSession.id != 0) {
+            sessionStatusText = "Ended"
+        }
+        notifyView.setTextViewText(R.id.textViewSessionStatus, "Session status: $sessionStatusText")
+
         val openingPendingIntent = PendingIntent.getActivity(getApplication(), 0, mapIntent, FLAG_IMMUTABLE)
 
-        val startStopIntent = Intent(C.PLAY_PAUSE)
-        val startStopPendingIntent = PendingIntent.getBroadcast(getApplication(), 0, startStopIntent, FLAG_IMMUTABLE)
-        notifyView.setOnClickPendingIntent(R.id.buttonStartStopOnNotification, startStopPendingIntent)
+        if (!currentSession.isActive && currentSession.id == 0) {
+            val startSessionIntent = Intent(C.START_SESSION)
+            val startStopPendingIntent =
+                PendingIntent.getBroadcast(getApplication(), 0, startSessionIntent, FLAG_IMMUTABLE)
+            notifyView.setOnClickPendingIntent(R.id.buttonStartStopOnNotification, startStopPendingIntent)
+        }
 
         val builder = NotificationCompat.Builder(getApplication(), C.NOTIFICATION_CHANNEL).setSmallIcon(R.drawable.map)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle()).setCustomContentView(notifyView)
@@ -204,16 +277,17 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
 
     private inner class InnerBroadcastReceiver : BroadcastReceiver() {
         override fun onReceive(p0: Context?, p1: Intent?) {
-            Log.d(TAG, "onReceive ${p1.toString()}")
-            startEndGpsSession()
+             Log.d(TAG, "onReceive ${p1.toString()}")
+            if (!currentSession.isActive) {
+                startEndGpsSession()
+            }
         }
     }
-
 
     private fun generateSessionName(): String {
         var result = ""
         val startTime = LocalDateTime.now()
-        result = result.plus(startTime.dayOfWeek.name)
+        result = result.plus(startTime.dayOfWeek.name.lowercase())
         if (23 <= startTime.hour || startTime.hour < 5) {
             result = result.plus(" night session")
         } else if (5 <= startTime.hour || startTime.hour < 11) {
@@ -227,11 +301,10 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
     }
 
 
-    fun getPointsOfInterests(): List<GpsLocation> {
+    fun getLocations(): List<GpsLocation> {
         val allPoints = ArrayList(currentSession.checkpoints)
         currentSession.currentWaypoint?.let { allPoints.add(it) }
         currentSession.lastVisitedWaypoint?.let { allPoints.add(it) }
-//        Log.d(TAG, "getPointsOfInterests wop=${gpsSession.checkpoints.count()} returned=${allPoints.count()}")
         return allPoints
     }
 
@@ -249,18 +322,17 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
             verticalAccuracyMeters = vac
         }
 
-        if (currentSession.isActive) {
+        if (currentSession.isActive && currentSession.id != 0) {
             updateDistances(locationIn)
         }
 
         currentLocation = locationIn
 
-        if (currentSession.isActive) {
+        if (currentSession.isActive && currentSession.id != 0) {
             drawPolyLine(lat, lng)
-            checkPointsOfInterest()
+            checkLocations()
             updateTime()
             createGpsLocation(GpsLocationType.LOC, lat, lng, acc, alt, vac)
-            Log.d(TAG, "gpsSessionId=${currentSession.id}")
         }
         showNotification()
     }
@@ -271,7 +343,7 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
         polylineOptions.value = updatePolylineOptions
     }
 
-    private fun checkPointsOfInterest() {
+    private fun checkLocations() {
         val visited = mutableListOf<GpsLocation>()
         val points = currentSession.checkpoints.toMutableList()
         currentSession.currentWaypoint?.let { points.add(it) }
@@ -279,38 +351,46 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
             if (currentLocation == null) return
             if (point.isVisited) continue
 
-            val results = FloatArray(1)
+            val distanceResults = FloatArray(1)
             Location.distanceBetween(
-                currentLocation!!.latitude, currentLocation!!.longitude, point.latitude, point.longitude, results
+                currentLocation!!.latitude, currentLocation!!.longitude, point.latitude, point.longitude, distanceResults
             )
-            val distance = results[0]
-            Log.d(TAG, "check POI, distance: $distance")
+            val distance = distanceResults[0]
+             Log.d(TAG, "check POI, distance: $distance")
             if (distance <= C.ACCEPTABLE_POINT_DISTANCE) {
                 visited.add(point)
             }
         }
 
-        if (visited.isEmpty()) return
-
         for (point in visited) {
-            point.isVisited = true
-            point.visitedAt = stopwatch.elapsed(TimeUnit.SECONDS)
-            val results = FloatArray(1)
-            Location.distanceBetween(
-                currentLocation!!.latitude, currentLocation!!.longitude, point.latitude, point.longitude, results
-            )
-            val distance = results[0]
-            point.distanceCoveredFrom = distance.toInt()
-            Log.d(TAG, "visited ${point.typeId}")
-
-            if (point.typeId == GpsLocationType.CP.id) {
-                currentSession.lastVisitedCheckpoint = point
-            } else if (point.typeId == GpsLocationType.WP.id) {
-                currentSession.lastVisitedWaypoint = point
-                currentSession.currentWaypoint = null
-            }
-            updatePointsOfInterest.value = true
+            markAsVisited(point)
         }
+    }
+
+    private fun markAsVisited(point: GpsLocation) {
+        point.isVisited = true
+        point.visitedAt = stopwatch.elapsed(TimeUnit.SECONDS)
+        Log.d("visitedAt", point.latitude.toString() + " " + point.visitedAt.toString())
+
+        val results = FloatArray(1)
+        Location.distanceBetween(
+            currentLocation!!.latitude, currentLocation!!.longitude, point.latitude, point.longitude, results
+        )
+        val distance = results[0]
+        point.distanceCoveredFrom = distance.toInt()
+        Log.d(TAG, "visited ${point.typeId}")
+
+        addLocationOnline(point)
+
+        if (point.typeId == GpsLocationType.CP.id) {
+            currentSession.lastVisitedCheckpoint = point
+        } else if (point.typeId == GpsLocationType.WP.id) {
+            currentSession.lastVisitedWaypoint = point
+            currentSession.currentWaypoint = null
+            Log.d("markAsVisited", "lastVisited=")
+        }
+        updatePointsOfInterest.value = true
+        Log.d("visitedAt", point.latitude.toString() + " " + point.visitedAt.toString())
     }
 
     private fun updateTime() {
@@ -336,7 +416,7 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
             distanceCoveredFromWaypoint.value = totalDistance
 
             directDistanceFromWaypoint.value = updatedLocation.distanceTo(lastWaypoint.getLocation()).toInt()
-            Log.d(TAG, "fromWaypoint: ${lastWaypoint.distanceCoveredFrom}")
+             Log.d(TAG, "fromWaypoint: ${lastWaypoint.distanceCoveredFrom}")
         }
     }
 
@@ -348,7 +428,7 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
             distanceCoveredFromCheckpoint.value = totalDistance
 
             directDistanceFromCheckpoint.value = updatedLocation.distanceTo(lastCheckpoint.getLocation()).toInt()
-            Log.d(TAG, "fromCheckpoint: ${lastCheckpoint.distanceCoveredFrom}")
+             Log.d(TAG, "fromCheckpoint: ${lastCheckpoint.distanceCoveredFrom}")
         }
     }
 
@@ -360,9 +440,6 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
         altitude: Double = 0.0,
         verticalAccuracy: Float = 0f
     ): GpsLocation {
-        if (currentSession.id == 0) {
-            createNewSession()
-        }
         val gpsLocation = GpsLocation(
             id = 0,
             typeId = type.id,
@@ -374,33 +451,75 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
             gpsSessionId = currentSession.id,
             recordedAt = LocalDateTime.now().toString()
         )
-        addGpsLocation(gpsLocation)
+        if (type == GpsLocationType.LOC) {
+            addGpsLocation(gpsLocation)
+        }
         return gpsLocation
     }
 
     private fun addGpsLocation(gpsLocation: GpsLocation) {
-        if (gpsLocation.typeId == GpsLocationType.LOC.id) {
-            locationList.add(gpsLocation)
-        } else {
-            viewModelScope.launch(Dispatchers.IO) {
-                locationRepository.addGpsLocation(gpsLocation)
+        if (currentSession.id == 0) return
+        viewModelScope.launch(Dispatchers.IO) {
+            locationRepository.addGpsLocation(gpsLocation)
+        }
+        addLocationOnline(gpsLocation)
+    }
+
+    private fun addLocationOnline(location: GpsLocation) {
+        val url = C.API + "GpsLocations"
+        var handler = HttpSingletonHandler.getInstance(getApplication())
+
+        var httpRequest = object : StringRequest(
+            Method.POST,
+            url,
+            Response.Listener { response ->
+                 Log.d("Response.Listener", response)
+            },
+            Response.ErrorListener { /*error ->
+                Log.d("Response.ErrorListener", "${error.message} ${error.networkResponse.statusCode} error=$error")
+                 */
+            }
+        ){
+            override fun getBodyContentType(): String {
+                return "application/json"
+            }
+
+            override fun getHeaders(): MutableMap<String, String> {
+                val params = mutableMapOf<String, String>()
+                params["Authorization"] = "Bearer " + user.token
+                 Log.d(TAG, "getHeaders()")
+                return params
+            }
+
+            override fun getBody(): ByteArray {
+                val params = HashMap<String, Any>()
+//                if (location.typeId == GpsLocationType.LOC.id) {
+                params["recordedAt"] = LocalDateTime.now().toString() // location.recordedAt
+//                } else {
+//                    params["recordedAt"] = LocalDateTime.parse(location.recordedAt).plusSeconds(location.visitedAt!!).toString()
+//                    Log.d("visitedAt.getBody",  location.latitude.toString() + " " + location.visitedAt.toString())
+//                }
+                params["latitude"] = location.latitude
+                params["longitude"] = location.longitude
+                params["accuracy"] = location.accuracy
+                params["altitude"] = location.altitude
+                params["verticalAccuracy"] = location.verticalAccuracy
+                params["gpsLocationTypeId"] = location.typeId
+                params["gpsSessionId"] = currentSession.onlineSessionId!!
+
+
+                var body = JSONObject(params as Map<*, *>).toString()
+                 Log.d("getBody", body)
+
+                return body.toByteArray()
             }
         }
 
-        if (locationList.size >= 20) {
-            addLocationList()
-        }
-    }
-
-    private fun addLocationList() {
-        viewModelScope.launch(Dispatchers.IO) {
-            locationRepository.addGpsLocations(locationList)
-            locationList.clear()
-        }
+        handler.addToRequestQueue(httpRequest)
     }
 
     fun savePointOfInterest(point: GpsLocation) {
-        Log.d(TAG, "savePointOfInterest ${point.typeId}")
+         Log.d(TAG, "savePointOfInterest ${point.typeId}")
         if (point.typeId == GpsLocationType.CP.id) {
             currentSession.checkpoints.add(point)
         } else if (point.typeId == GpsLocationType.WP.id) {
@@ -422,4 +541,19 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
         mapIntent.addCategory(Intent.CATEGORY_LAUNCHER)
         mapIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
     }
+
+    fun userExists(): Boolean = runBlocking {
+        val result = withContext(Dispatchers.Default) { userRepository.getUserExists() }
+         Log.d("Login", "returned $result")
+        return@runBlocking result
+    }
+
+    private fun getUser(): User = runBlocking {
+         Log.d("Login", "getUser()")
+        val result = withContext(Dispatchers.Default) { userRepository.getUser() }
+         Log.d("Login", "returned $result")
+        return@runBlocking result
+    }
+
+
 }
