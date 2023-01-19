@@ -14,6 +14,7 @@ import android.location.LocationManager
 import android.os.*
 import android.util.Log
 import android.view.View
+import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
@@ -51,6 +52,7 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var textViewTotalTimeElapsed: TextView
 
     private lateinit var textViewCameraMode: TextView // TODO: This is here for testing
+    private lateinit var textViewLoginScreen: TextView
     private lateinit var textViewWaypointPace: TextView
     private lateinit var textViewCheckpointPace: TextView
     private lateinit var textViewDirectDistanceFromWaypoint: TextView
@@ -63,8 +65,9 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var mMap: GoogleMap
     private lateinit var viewModel: MapActivityViewModel
-
     private var currentCamera: Camera = Camera()
+
+    private lateinit var locationIntent : Intent
     private val formatter: Formatter = Formatter()
     private var broadcastReceiver = InnerBroadcastReceiver()
     private var broadcastReceiverIntentFilter = IntentFilter()
@@ -78,17 +81,11 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_map)
 
+        window.addFlags(WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON)
+
         viewModel = ViewModelProvider(this)[MapActivityViewModel::class.java]
         viewModel.createLauncherIntent(Intent(this, MapActivity::class.java))
 
-
-        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
-        val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
-
-        mapFragment.getMapAsync(this)
-
-        createNotificationChannel()
-        startLocationService()
 
         //region findViewById
         buttonCancel = findViewById(R.id.imageButtonCancel)
@@ -96,6 +93,7 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         buttonConfirm = findViewById(R.id.imageButtonConfirm)
         textViewTotalPace = findViewById(R.id.textViewTotalPace)
         buttonAddWaypoint = findViewById(R.id.buttonAddWaypoint)
+        textViewLoginScreen = findViewById(R.id.textViewLoginScreen)
         textViewWaypointPace = findViewById(R.id.textViewWaypointPace)
         imageViewWaypointPointer = findViewById(R.id.imageViewWaypoint)
         textViewTotalDistance = findViewById(R.id.textViewTotalDistance)
@@ -109,6 +107,16 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         textViewDirectDistanceFromCheckpoint = findViewById(R.id.textViewDirectDistanceFromCheckpoint)
         textViewDistanceCoveredFromCheckpoint = findViewById(R.id.textViewDistanceCoveredFromCheckpoint)
         //endregion
+
+        login()
+
+        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
+        val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
+
+        mapFragment.getMapAsync(this)
+
+        createNotificationChannel()
+        startLocationService()
 
         //region setOnClickListener
         buttonStartStop.setOnClickListener { viewModel.startEndGpsSession() }
@@ -181,13 +189,13 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         viewModel.updatePointsOfInterest.observe(this) {
             if (it) {
                 viewModel.updatePointsOfInterest.value = false
-                redrawPointsOfInterest()
+                redrawLocations()
             }
         }
 
         // update polyline
         viewModel.polylineOptions.observe(this) {
-            Log.d(TAG, "updatePolyline")
+             Log.d(TAG, "updatePolyline")
             if (this::mMap.isInitialized) {
                 val polyline = mMap.addPolyline(it)
                 viewModel.setPolyline(polyline)
@@ -216,45 +224,67 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         broadcastReceiverIntentFilter.addAction(C.LOCATION_UPDATE)
-        broadcastReceiverIntentFilter.addAction(C.PLAY_PAUSE)
+        broadcastReceiverIntentFilter.addAction(C.START_SESSION)
+    }
+
+    private fun login() {
+         Log.d("Login", "start login")
+        if (!viewModel.userExists()) {
+            textViewLoginScreen.visibility = View.VISIBLE
+             Log.d("Login", "show login dialog")
+            showLoginDialog()
+        } else {
+             Log.d("Login", "login not needed")
+            textViewLoginScreen.visibility = View.INVISIBLE
+        }
+        //login from db
+    }
+
+    private fun showLoginDialog() {
+        val loginDialog = LoginDialog(application, this)
+//        textViewLoginScreen = findViewById(R.id.textViewLoginScreen)
+        loginDialog.show(supportFragmentManager, "Login dialog")
     }
 
 
     override fun onResume() {
         super.onResume()
-        Log.d(TAG, "onResume")
+         Log.d(TAG, "onResume")
 
-        //todo kas seda on vaja?
         LocalBroadcastManager.getInstance(this)
             .registerReceiver(broadcastReceiver, broadcastReceiverIntentFilter)
     }
 
     override fun onPause() {
         super.onPause()
-        Log.d(TAG, "onPause")
+         Log.d(TAG, "onPause")
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "onDestroy")
+         Log.d(TAG, "onDestroy")
+        stopService(locationIntent)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(broadcastReceiver)
-        //todo destroy notification and LocationService
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.deleteNotificationChannel(C.NOTIFICATION_CHANNEL)
     }
 
     //endregion
 
-    private fun redrawPointsOfInterest() {
+    private fun redrawLocations() {
         mMap.clear()
-        for (point in viewModel.getPointsOfInterests()) {
-            Log.d(TAG, "redrawPointsOfInterest, type=${point.typeId}")
+        for (point in viewModel.getLocations()) {
+             Log.d(TAG, "redrawLocation, $point")
             drawPoint(point)
         }
     }
 
     private fun startEndGpsSession() {
         if (viewModel.isCurrentSessionActive.value == true) {
+            // Stopping
             buttonStartStop.setImageDrawable(AppCompatResources.getDrawable(this, R.drawable.pause))
         } else {
+            // Starting
             buttonStartStop.setImageDrawable(AppCompatResources.getDrawable(this, R.drawable.play))
         }
     }
@@ -284,24 +314,24 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         }
 
         mMap.isMyLocationEnabled = true
-        redrawPointsOfInterest()
+        redrawLocations()
         viewModel.polylineOptions.value?.let { mMap.addPolyline(it) }
     }
 
     private fun startLocationService() {
-        //Log.d(TAG, "startLocationService")
-        val intent = Intent(applicationContext, LocationService::class.java)
+         Log.d(TAG, "startLocationService")
+        locationIntent = Intent(applicationContext, LocationService::class.java)
 
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-//            // long running bgr service without ui (with notification)
-//            startForegroundService(intent)
-//        } else {
-        startService(intent)
-//        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // long running bgr service without ui (with notification)
+            startForegroundService(locationIntent)
+        } else {
+            startService(locationIntent)
+        }
     }
 
     fun locationUpdateIn(lat: Double, lng: Double, acc: Float, alt: Double, vac: Float) {
-        Log.d(TAG, "updateLocation, ${lat} ${lng}")
+         Log.d(TAG, "updateLocation, ${lat} ${lng}")
         viewModel.locationUpdateIn(lat, lng, acc, alt, vac)
 
         if (!this::mMap.isInitialized) return
@@ -324,14 +354,14 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
             CameraMode.FREE -> currentCamera.mode = CameraMode.NORTH_UP
             CameraMode.USER_CHOSEN_UP -> currentCamera.mode = CameraMode.USER_CHOSEN_UP
         }
-        //Log.d(TAG, "toggleCameraDirection: ${currentCamera.mode}")
+         Log.d(TAG, "toggleCameraDirection: ${currentCamera.mode}")
         textViewCameraMode.text = currentCamera.mode.name
         updateCamera()
     }
 
     private fun updateCamera() {
         mMap.uiSettings.isRotateGesturesEnabled = currentCamera.isRotateEnabled()
-        //Log.d(TAG, "updateCamera: ${currentCamera.mode}")
+         Log.d(TAG, "updateCamera: ${currentCamera.mode}")
 
         if (currentCamera.mode == CameraMode.FREE) return
 
@@ -351,7 +381,7 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
 
     //region Checkpoints, waypoints
     private fun startAddPointOfInterest(type: GpsLocationType) {
-        //Log.d(TAG, "startAddPoint: $type")
+         Log.d(TAG, "startAddPoint: $type")
 //        val savedCamera = currentCamera
 //        currentCamera = Camera(CameraMode.FREE, savedCamera.zoom)
         showPointer(type)
@@ -424,7 +454,7 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private inner class InnerBroadcastReceiver : BroadcastReceiver() {
         override fun onReceive(p0: Context?, p1: Intent?) {
-            Log.d(TAG, "onReceive ${p1.toString()}")
+             Log.d(TAG, "onReceive ${p1.toString()}")
             when (p1!!.action) {
                 C.LOCATION_UPDATE -> {
                     locationUpdateIn(

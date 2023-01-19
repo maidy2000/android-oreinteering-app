@@ -12,7 +12,7 @@ data class GpsSession(
     val name: String,
     val description: String,
     val startedAt: String,
-    val onlineSessionId: String? = null
+    var onlineSessionId: String? = null
 ) {
     var endedAt: String? = null
 
