@@ -1,0 +1,43 @@
+#Base Docker image
+image: jangrewe/gitlab-ci-android:latest
+
+#In this section you can choose which type of testing you would like to do. Currently, it's set for "screenshot"
+variables:
+  REPORT_TYPE: $SCREENSHOT # change it to $ESPRESSO if you would like to run Espresso tests
+
+  #--------------------------------------------------------------------
+  #--DO NOT MODIFY THIS PART BELOW UNLESS YOU KNOW WHAT YOU ARE DOING--
+  #--------------------------------------------------------------------
+  #These are constants. DO NOT CHANGE THEM
+  SCREENSHOT: "screenshot"
+  ESPRESSO: "espresso"
+
+#Adding cache for faster results
+cache:
+  key: ${CI_PROJECT_ID}
+  paths:
+    - .gradle/
+
+#Code compile section is defined here. Code will be compiled in the Docker container
+assembleArtifacts:
+  stage: build
+  allow_failure: false
+  when: manual
+  script:
+    - export GRADLE_USER_HOME=$(pwd)/.gradle
+    - chmod +x ./gradlew
+    - ./gradlew assembleDebug
+    - mkdir -p artifacts
+    - mv $(find . -type f -name "*debug.apk") artifacts/app-debug.apk
+
+  artifacts:
+    paths:
+      - artifacts
+
+#Compiled results will be passed to Jenkins
+testArtifacts:
+  stage: test
+  dependencies:
+    - assembleArtifacts
+  script:
+    - curl -X POST http://testlab.ttu.ee:9090/buildByToken/buildWithParameters?job=Android -F token=gW0QBcGUftU5RJNVPlr3Fkrh8D7WSk5s -F projectId=${CI_PROJECT_ID} -F jobId=${CI_JOB_ID} -F testingType=${REPORT_TYPE} -F email=${GITLAB_USER_EMAIL}
