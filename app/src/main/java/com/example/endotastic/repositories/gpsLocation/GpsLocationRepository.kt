@@ -5,10 +5,8 @@ import com.example.endotastic.daos.GpsLocationDao
 
 class GpsLocationRepository(private val gpsLocationDao: GpsLocationDao) {
 
-    val readAllData: LiveData<List<GpsLocation>> = gpsLocationDao.readAllData()
-
-    fun readDataByGpsSessionId(gpsSessionId: Int): LiveData<List<GpsLocation>> {
-        return gpsLocationDao.readDataByGpsSessionId(gpsSessionId)
+    suspend fun getAllBySessionId(gpsSessionId: Int): List<GpsLocation> {
+        return gpsLocationDao.getAllBySessionId(gpsSessionId)
     }
 
     suspend fun addGpsLocation(gpsLocation: GpsLocation) {

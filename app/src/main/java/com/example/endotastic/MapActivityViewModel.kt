@@ -11,7 +11,9 @@ import android.graphics.Color
 import android.location.Location
 import android.location.LocationManager
 import android.util.Log
+import android.util.Xml
 import android.widget.RemoteViews
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
@@ -39,6 +41,11 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.json.JSONTokener
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.io.OutputStreamWriter
+import java.io.StringWriter
 import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 
@@ -119,6 +126,10 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
             currentSession.isActive = false
             stopwatch.stop()
             currentSession.endedAt = LocalDateTime.now().toString()
+            viewModelScope.launch(Dispatchers.IO) {
+                val locations = locationRepository.getAllBySessionId(currentSession.id)
+                generateGtx(currentSession, locations)
+            }
             updateGpsSession(currentSession)
             // TODO finish screen and reset
         } else {
@@ -128,10 +139,55 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
             if (currentSession.id == 0) {
                 createNewSession()
             }
+
             currentSession.isActive = true
         }
         isCurrentSessionActive.value = currentSession.isActive
          Log.d(TAG, "change isActive=${currentSession.isActive}")
+    }
+
+    private fun generateGtx(session: GpsSession, locations: List<GpsLocation>) {
+        val xmlSerializer = Xml.newSerializer()
+        val writer = StringWriter()
+
+        xmlSerializer.setOutput(writer)
+        xmlSerializer.startDocument("UTF-8", false)
+        xmlSerializer.startTag("", "gpx")
+        xmlSerializer.attribute("", "version", "1.1")
+        xmlSerializer.attribute("", "creator", "endotastic")
+        xmlSerializer.attribute("", "xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
+        xmlSerializer.attribute("", "xmlns", "http://www.topografix.com/GPX/1/1")
+        xmlSerializer.attribute("", "xsi:schemaLocation", "http://www.topografix.com/GPX/1/1")
+
+        for (location in locations) {
+            xmlSerializer.startTag("", "wpt")
+            xmlSerializer.attribute("", "lat", location.latitude.toString())
+            xmlSerializer.attribute("", "lon", location.longitude.toString())
+            xmlSerializer.startTag("", "ele")
+            xmlSerializer.text(location.altitude.toString())
+            xmlSerializer.endTag("","ele")
+            xmlSerializer.startTag("", "time")
+            xmlSerializer.text(location.recordedAt)
+            xmlSerializer.endTag("","time")
+            xmlSerializer.endTag("","wpt")
+        }
+
+        xmlSerializer.endDocument()
+        println(writer.toString())
+
+        try {
+            val fileName = "gpx_session_at_${session.startedAt}.xml"
+            val file = File(getApplication<Application>().getExternalFilesDir(null), fileName)
+            val fos = FileOutputStream(file)
+            val osw = OutputStreamWriter(fos)
+            fos.write(writer.toString().toByteArray())
+            fos.close()
+            osw.flush()
+            osw.close()
+            Log.d(TAG, "File writing successful to ${file.absolutePath}")
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
     }
 
 
