@@ -159,18 +159,46 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
         xmlSerializer.attribute("", "xmlns", "http://www.topografix.com/GPX/1/1")
         xmlSerializer.attribute("", "xsi:schemaLocation", "http://www.topografix.com/GPX/1/1")
 
+        // Checkpoints
         for (location in locations) {
-            xmlSerializer.startTag("", "wpt")
-            xmlSerializer.attribute("", "lat", location.latitude.toString())
-            xmlSerializer.attribute("", "lon", location.longitude.toString())
-            xmlSerializer.startTag("", "ele")
-            xmlSerializer.text(location.altitude.toString())
-            xmlSerializer.endTag("","ele")
-            xmlSerializer.startTag("", "time")
-            xmlSerializer.text(location.recordedAt)
-            xmlSerializer.endTag("","time")
-            xmlSerializer.endTag("","wpt")
+            if (location.typeId == GpsLocationType.CP.id) {
+                xmlSerializer.startTag("", "wpt")
+                xmlSerializer.attribute("", "lat", location.latitude.toString())
+                xmlSerializer.attribute("", "lon", location.longitude.toString())
+                xmlSerializer.startTag("", "ele")
+                xmlSerializer.text(location.altitude.toString())
+                xmlSerializer.endTag("","ele")
+                xmlSerializer.startTag("", "time")
+                xmlSerializer.text(location.recordedAt)
+                xmlSerializer.endTag("","time")
+                xmlSerializer.endTag("","wpt")
+            }
         }
+
+        // Track
+        xmlSerializer.startTag("", "trk")
+        xmlSerializer.startTag("", "name")
+        xmlSerializer.text(session.name + " " + session.startedAt)
+        xmlSerializer.endTag("", "name")
+        xmlSerializer.startTag("", "trkseg")
+
+        for (location in locations) {
+            if (location.typeId == GpsLocationType.LOC.id) {
+                xmlSerializer.startTag("", "trkpt")
+                xmlSerializer.attribute("", "lat", location.latitude.toString())
+                xmlSerializer.attribute("", "lon", location.longitude.toString())
+                xmlSerializer.startTag("", "ele")
+                xmlSerializer.text(location.altitude.toString())
+                xmlSerializer.endTag("", "ele")
+                xmlSerializer.startTag("", "time")
+                xmlSerializer.text(location.recordedAt)
+                xmlSerializer.endTag("", "time")
+                xmlSerializer.endTag("", "trkpt")
+            }
+        }
+
+        xmlSerializer.endTag("", "trkseg")
+        xmlSerializer.endTag("", "trk")
 
         xmlSerializer.endDocument()
         println(writer.toString())
@@ -436,7 +464,7 @@ class MapActivityViewModel(application: Application) : AndroidViewModel(applicat
         point.distanceCoveredFrom = distance.toInt()
         Log.d(TAG, "visited ${point.typeId}")
 
-        addLocationOnline(point)
+        addGpsLocation(point)
 
         if (point.typeId == GpsLocationType.CP.id) {
             currentSession.lastVisitedCheckpoint = point
